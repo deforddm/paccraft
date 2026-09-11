@@ -1,0 +1,19 @@
+<!doctype html><html><body style="background:#333;margin:0;padding:10px;font:12px sans-serif;color:#fff">
+<div id="out"></div>
+<script src="../src/world.js"></script><script src="../src/textures.js"></script>
+<script>
+const T = PCTex.build(), out = document.getElementById('out');
+function show(c, s, label){ const o=document.createElement('canvas'); o.width=c.width*s; o.height=c.height*s; const g=o.getContext('2d'); g.imageSmoothingEnabled=false; g.drawImage(c,0,0,o.width,o.height); o.style.margin='3px'; o.title=label||''; out.appendChild(o); }
+function br(t){ const d=document.createElement('div'); d.textContent=t||''; out.appendChild(d); }
+br('blocks top'); Object.keys(T.blocks).forEach(k=>show(T.blocks[k].top,4,k));
+br('blocks side'); Object.keys(T.blocks).forEach(k=>show(T.blocks[k].side,4,k));
+br('cubes'); Object.keys(T.blocks).forEach(k=>show(PCTex.cubeIcon(T.blocks[k],48),1.5,k));
+br('floors'); Object.keys(T.floors).forEach(k=>show(T.floors[k][0],4,k));
+br('hero looks');
+['miner','cap','none','crown','diamond','knight'].forEach(h=>{ const set=PCTex.hero(Object.assign({},PCTex.LOOK_DEFAULT,{hat:h})); ['down','up','right','left'].forEach(v=>set[v].forEach(c=>show(c,5))); br(); });
+br('monsters'); Object.keys(T.mons).forEach(k=>T.mons[k].forEach(c=>{ const o=PCTex.mk(16,16), g=o.getContext('2d'); g.drawImage(c,0,0); PCTex.drawEyes(g,0,0,1,3,k==='fright'||k==='flash'); show(o,5,k); }));
+br('items'); show(T.crystal,5); T.tnt.forEach(c=>show(c,5)); Object.keys(T.food).forEach(k=>show(T.food[k],5)); T.picks.forEach(c=>show(c,5));
+br('icons'); Object.keys(T.ores).forEach(k=>show(T.ores[k],5)); T.heart.forEach(c=>show(c,5)); show(T.boot,5); show(T.magnet,5); show(T.bag,5);
+br('cracks'); T.cracks.forEach(c=>show(c,4));
+br('font'); const fc=PCTex.mk(700,40); PCTex.drawText(fc.getContext('2d'),'PACCRAFT 0123456789 READY! GO MAX',4,4,3,'#fff','#000'); out.appendChild(fc);
+</script></body></html>
