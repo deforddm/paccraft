@@ -1,0 +1,27 @@
+<!doctype html><html><body>
+<script src="../src/world.js"></script><script src="../src/textures.js"></script>
+<script>
+// Renders the app icons from the game's own pixel art. Run via tools/make-icons.js (Playwright).
+function icon(size, maskable) {
+  const tex = PCTex.build(), grid = 64, c = PCTex.mk(grid, grid), g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  // sky gradient
+  const sky = g.createLinearGradient(0, 0, 0, grid); sky.addColorStop(0, '#2a1f45'); sky.addColorStop(1, '#5a3a6a');
+  g.fillStyle = sky; g.fillRect(0, 0, grid, grid);
+  // stars
+  g.fillStyle = '#ffe9a8'; [[8, 8], [52, 6], [44, 16], [14, 20], [58, 26]].forEach(p => g.fillRect(p[0], p[1], 1, 1));
+  // ground of grass blocks
+  const gb = tex.blocks[PCWorld.TILE.GRASS];
+  for (let x = 0; x < grid; x += 16) { g.drawImage(gb.sideFull, x, 48); }
+  const look = PCTex.LOOK_DEFAULT, hero = PCTex.hero(look).down[0];
+  const s = maskable ? 2 : 3, hw = 16 * s;
+  const hx = Math.round((grid - hw) / 2) - (maskable ? 0 : 0), hy = 48 - hw + (maskable ? 2 : 3);
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(hx + 4, 47, hw - 8, 2);
+  g.drawImage(hero, hx, hy, hw, hw);
+  // gem sparkle
+  g.fillStyle = '#1d6b4a'; g.fillRect(maskable ? 46 : 52, 40, 5, 4); g.fillStyle = '#5ef0a8'; g.fillRect(maskable ? 46 : 52, 39, 4, 4); g.fillStyle = '#fff'; g.fillRect(maskable ? 46 : 52, 39, 1, 1);
+  const o = PCTex.mk(size, size), og = o.getContext('2d'); og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, size, size);
+  return o.toDataURL('image/png');
+}
+window.ICONS = { i192: icon(192), i512: icon(512), m512: icon(512, true), apple: icon(180), fav: icon(64) };
+</script></body></html>
