@@ -66,7 +66,12 @@ No framework and no build step needed to run it. Node is only used for tests and
 
 ## Updating the hosted game
 
-Change files → `node tools/build.js` → bump `CACHE` in `sw.js` (e.g. `paccraft-v1.0.1`) → upload the changed files to the repo. Installed copies update the next time they're opened online.
+1. Change files, then `node tests/sim.test.js` and `node tools/build.js`.
+2. Bump the version in **two** places: `CACHE` in `sw.js` (e.g. `paccraft-v1.1.1`) and `VERSION` in `src/app.js` (shown in Settings).
+3. Upload to the repo **in this order**: `src/` → `dist/` → root files, with `sw.js` last (so phones never cache a half-uploaded release). GitHub Pages redeploys in about a minute.
+4. On the phone: next time PacCraft is opened online it downloads the update in the background and shows an **Update ready!** button on the menus (hidden during play). Tap **Update** → it saves progress, switches to the new version and reloads. Saved ores, upgrades, hats and built levels are kept (they live in the phone's browser storage, tied to the site address — don't rename the repo).
+
+Versions shipped before the button existed (v1.0.0, listed in `LEGACY` in `sw.js`) switch to the new version automatically on the next open-and-reopen.
 
 ## Tuning
 
