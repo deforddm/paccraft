@@ -1,0 +1,14 @@
+{
+  "name": "paccraft",
+  "version": "1.0.0",
+  "description": "PacCraft — a blocky maze-chase game for phones: gobble gems, dig, build, craft, and bonk cube monsters.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/sim.test.js",
+    "bot": "node tests/bot.js",
+    "build": "node tools/build.js",
+    "icons": "node tools/make-icons.js",
+    "serve": "npx serve ."
+  },
+  "license": "UNLICENSED"
+}
