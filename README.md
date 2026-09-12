@@ -7,7 +7,7 @@ A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with 
 - **Gobble every gem** in the maze to clear the level. Four cube monsters chase you — **Rumble** (chases you), **Sly** (cuts you off), **Frost** (flanks), and **Mudge** (brave from afar, shy up close).
 - **Power Crystals** (purple) turn the monsters blue for a few seconds — bonk them for 200 → 400 → 800 → 1600 points.
 - **Dig!** Push into a wall (or tap DIG) to mine it and make a shortcut. The bedrock edge and the monster cage can't be dug. Harder blocks (stone, ores) take longer; better pickaxes dig faster.
-- **Ores** (coal, iron, gold, diamond) give points and are saved to spend at the **Crafting Table**.
+- **Ores** (coal, iron, gold, diamond and rare **ember**) give points and are saved to spend at the **Crafting Table**. Ember Ore hides in the Lava Caves (and rarely in the Dark Caves and Crystal Caverns); it's the toughest block in the game, so bring a good pickaxe.
 - **Build a wall:** the block button drops a plank block behind you; monsters bump into it (it crumbles after a while, or they chew through if trapped). Digging walls refills your blocks.
 - **TNT:** craft it, drop it, run. Blasts a 3×3 area and bonks monsters. Never hurts you.
 - **Snacks** appear under the cage twice a level: points + a heart.
@@ -18,8 +18,9 @@ A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with 
 
 | Upgrade | Levels | What it does |
 |---|---|---|
-| Pickaxe | Stone → Iron → Diamond | Digs 1.6× / 2.5× / 4× faster |
-| Speedy Boots | 3 | +6% run speed each |
+| Pickaxe | Stone → Iron → Diamond → Emberite | Digs 1.6× / 2.5× / 4× / 6× faster |
+| Speedy Boots | 4 (4th = Emberite Boots) | +6% run speed each |
+| Emberite Armor | 2 | Soaks up one monster hit per charge each level, then a moment of invincibility |
 | Extra Heart | 2 | +1 heart every level |
 | Crystal Power | 3 | Monsters stay scared +1.5 s each |
 | Block Bag | 3 | Carry 3 more blocks, start levels with extras |
@@ -28,7 +29,7 @@ A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with 
 
 ### Hero & Build mode
 
-- **Hero:** name, hat (miner helmet, cap, none — plus knight, crown and diamond helmet you unlock with ores), shirt, pants, hair, skin.
+- **Hero:** name, hat (miner helmet, cap, none — plus knight, crown, diamond and emberite helmets you unlock with ores), shirt, pants, hair, skin.
 - **Build:** paint your own maze with any block (mirror-drawing on by default), place Power Crystals and your start spot, pick a world theme, then **Test** it. Saved levels live under Play → My Levels.
 
 ### Controls
@@ -75,7 +76,7 @@ Versions shipped before the button existed (v1.0.0, listed in `LEGACY` in `sw.js
 
 ## Tuning
 
-- Speeds, hearts, power-up length, monster release timing and scatter/chase phases: `DIFF` at the top of `src/game.js`.
+- Speeds, hearts, power-up length, monster release timing, scatter/chase phases and pickaxe speeds (`PICK_SPEED`): the top of `src/game.js`.
 - Crafting recipes and costs: `RECIPES` in `src/app.js`. Hat prices: `HAT_COST`.
 - Worlds, block mixes and ore rates: `BIOMES` in `src/world.js`.
 
