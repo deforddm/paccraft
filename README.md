@@ -30,6 +30,7 @@ A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with 
 ### Hero & Build mode
 
 - **Hero:** name, hat (miner helmet, cap, none — plus knight, crown, diamond and emberite helmets you unlock with ores), shirt, pants, hair, skin.
+- **Pet:** a blocky wolf (adopt for 5 gold + 3 iron) that trots along the hero's own trail about a tile behind, sits when he stands still and wears a collar matching his shirt. Purely cosmetic — it's drawn by the renderer only, so monsters, gems and collisions never see it.
 - **Build:** paint your own maze with any block (mirror-drawing on by default), place Power Crystals and your start spot, pick a world theme, then **Test** it. Saved levels live under Play → My Levels.
 
 ### Controls

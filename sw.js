@@ -2,7 +2,7 @@
  * Release checklist: bump CACHE (and VERSION in src/app.js) every time you ship.
  * A new version downloads in the background, then waits; the game shows an
  * "Update ready" button, and tapping it activates the new version and reloads. */
-var CACHE = 'paccraft-v1.2.1';
+var CACHE = 'paccraft-v1.3.0';
 // versions shipped before the update button existed can't show it, so they switch over automatically
 var LEGACY = ['paccraft-v1.0.0'];
 var ASSETS = [
