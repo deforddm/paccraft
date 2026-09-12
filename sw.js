@@ -2,7 +2,7 @@
  * Release checklist: bump CACHE (and VERSION in src/app.js) every time you ship.
  * A new version downloads in the background, then waits; the game shows an
  * "Update ready" button, and tapping it activates the new version and reloads. */
-var CACHE = 'paccraft-v1.2.0';
+var CACHE = 'paccraft-v1.2.1';
 // versions shipped before the update button existed can't show it, so they switch over automatically
 var LEGACY = ['paccraft-v1.0.0'];
 var ASSETS = [
@@ -27,7 +27,9 @@ self.addEventListener('activate', function (e) {
     return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
-// cache-first for our own files (instant, offline); refresh the cache in the background
+// Cache-only for files this version installed, so every release stays internally consistent —
+// a new release arrives as a whole through the update flow, never file-by-file underneath a
+// running game. Anything not in this version's cache falls back to the network.
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   var url = new URL(e.request.url);
@@ -35,11 +37,11 @@ self.addEventListener('fetch', function (e) {
   if (url.pathname.slice(-6) === '/sw.js') return;
   e.respondWith(caches.open(CACHE).then(function (cache) {
     return cache.match(e.request, { ignoreSearch: true }).then(function (cached) {
-      var fetched = fetch(e.request).then(function (res) {
+      if (cached) return cached;
+      return fetch(e.request).then(function (res) {
         if (res && res.ok) cache.put(e.request, res.clone());
         return res;
-      }).catch(function () { return cached || new Response('Offline', { status: 503, statusText: 'Offline' }); });
-      return cached || fetched;
+      }).catch(function () { return new Response('Offline', { status: 503, statusText: 'Offline' }); });
     });
   }));
 });
