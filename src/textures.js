@@ -326,6 +326,62 @@ var PCTex = (function () {
     return outline(c);
   }
 
+  // ---------------- pet wolf (cosmetic) ----------------
+  // frames: 0 = stand, 1/2 = trot, 3 = sit (used when the hero stands still)
+  function wolfSprite(view, frame, collar) {
+    var c = mk(16, 16), P = painter(c);
+    var fur = '#c3c8d2', furD = '#98a1af', furL = '#eef1f7', dark = '#2b2b36';
+    collar = collar || '#d8322b';
+    var sit = frame === 3, trot = frame === 1 || frame === 2, lift = frame === 2 ? 1 : 0;
+    if (view === 'side') {
+      P.r(1, sit ? 6 : 5, 2, 4, fur); P.p(1, sit ? 5 : 4, furL); P.p(2, sit ? 5 : 4, furD);   // tail
+      if (sit) {
+        P.r(3, 9, 6, 4, furD); P.r(4, 8, 6, 3, fur);                                          // haunches
+        P.r(8, 5, 5, 6, fur); P.r(9, 9, 3, 3, furL);                                          // upright chest
+        P.r(8, 12, 4, 1, furD); P.r(9, 13, 2, 1, furD);                                       // front paws
+      } else {
+        P.r(3, 6, 9, 5, fur); P.r(3, 9, 9, 2, furD); P.r(8, 8, 4, 2, furL);
+        P.r(4, 11, 2, 3 - lift, furD); P.r(9, 11, 2, 3 - (1 - lift), furD);                   // legs
+        P.r(6, 11, 2, 2 + lift, fur); P.r(11, 11, 1, 2 + (1 - lift), fur);
+      }
+      var hy = sit ? 2 : 3;
+      P.r(10, hy, 5, 5, fur); P.r(13, hy + 2, 3, 3, furL); P.p(15, hy + 3, dark);              // head + muzzle
+      P.r(12, hy + 1, 1, 2, dark);                                                            // eye
+      P.p(10, hy - 1, furD); P.p(11, hy - 1, fur); P.p(14, hy - 1, fur); P.p(13, hy - 1, furD); // ears
+      P.r(10, hy + 5, 3, 1, collar);
+    } else if (view === 'down') {
+      P.p(4, 1, furD); P.p(5, 1, fur); P.p(10, 1, fur); P.p(11, 1, furD);                     // ears
+      P.p(4, 2, furD); P.p(11, 2, furD);
+      P.r(5, 2, 6, 6, fur);                                                                   // head
+      P.r(6, 5, 4, 3, furL); P.r(7, 6, 2, 1, dark);                                           // muzzle + nose
+      P.r(6, 3, 1, 2, dark); P.r(9, 3, 1, 2, dark);                                           // eyes
+      P.r(5, 8, 6, 1, collar);
+      P.r(4, 9, 8, 5, fur); P.r(4, 12, 8, 2, furD); P.r(6, 9, 4, 3, furL);                    // body + chest
+      P.r(4, 13, 2, 2 - lift, furD); P.r(10, 13, 2, 2 - (1 - lift), furD);                    // front paws
+      if (sit) { P.r(3, 12, 2, 2, furD); P.r(11, 12, 2, 2, furD); }
+    } else { // up (trotting away)
+      P.p(4, 1, furD); P.p(5, 1, fur); P.p(10, 1, fur); P.p(11, 1, furD);                     // ears
+      P.r(5, 2, 6, 4, furD); P.r(6, 3, 4, 2, fur);                                            // back of the head
+      P.r(4, 6, 8, 8, fur); P.r(4, 6, 8, 1, furD);
+      P.r(3, 4, 2, 5, furL); P.p(3, 3, furL); P.p(2, 5, furL);                                // bushy tail, held up
+      P.r(6, 8, 4, 4, furD);                                                                  // back fur shading
+      P.r(4, 13, 2, 2 - lift, furD); P.r(10, 13, 2, 2 - (1 - lift), furD);
+    }
+    return outline(c);
+  }
+  var wolfCache = {};
+  function wolf(collar) {
+    var key = collar || 'x';
+    if (wolfCache[key]) return wolfCache[key];
+    var set = { down: [], up: [], right: [], left: [] };
+    for (var f = 0; f < 4; f++) {
+      set.down.push(wolfSprite('down', f, collar)); set.up.push(wolfSprite('up', f, collar));
+      var s = wolfSprite('side', f, collar); set.right.push(s); set.left.push(flipX(s));
+    }
+    wolfCache[key] = set;
+    return set;
+  }
+
   // ---------------- monsters ----------------
   var MON = {
     rumble: { body: '#d2402f', dark: '#8f2419', light: '#f0674f' },
@@ -572,7 +628,7 @@ var PCTex = (function () {
   }
 
   return {
-    build: build, hero: hero, HATS: HATS, LOOK_DEFAULT: LOOK_DEFAULT, drawEyes: drawEyes, cubeIcon: cubeIcon,
+    build: build, hero: hero, wolf: wolf, HATS: HATS, LOOK_DEFAULT: LOOK_DEFAULT, drawEyes: drawEyes, cubeIcon: cubeIcon,
     drawText: drawText, textWidth: textWidth, dataURL: dataURL, mk: mk, shade: shade, outline: outline, GLYPH: GLYPH, FLOOR: FLOOR
   };
 })();

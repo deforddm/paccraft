@@ -19,7 +19,11 @@ var PCRender = (function () {
   }
   var R = Renderer.prototype;
 
-  R.setLook = function (look) { this.look = look; this.heroSet = PCTex.hero(look); };
+  R.setLook = function (look) {
+    this.look = look; this.heroSet = PCTex.hero(look);
+    this.petSet = (look.pet && look.pet !== 'none') ? PCTex.wolf(look.shirt) : null;
+    this.pet = { x: 0, y: 0, dir: 2, anim: 0, idle: 0, trail: [] };
+  };
 
   R.resize = function (cssW, cssH) {
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -38,6 +42,7 @@ var PCRender = (function () {
     this.game = game; this.particles = []; this.popups = []; this.shake = 0; this.flash = 0;
     this.biome = game.L.biome; this.dirty = true;
     if (!this.heroSet) this.heroSet = PCTex.hero(this.look);
+    if (this.pet) { this.pet.trail = []; this.pet.x = game.player.x; this.pet.y = game.player.y; }
   };
 
   // screen position of a tile's "ground centre"
@@ -164,9 +169,11 @@ var PCRender = (function () {
     for (var k = 0; k < game.tnts.length; k++) this.drawTnt(g, game.tnts[k], now);
 
     // entity list bucketed by row
+    this.updatePet(dt);
     var buckets = [];
     var ents = [];
     ents.push({ kind: 'player', e: game.player });
+    if (this.petSet && game.state !== 'dying' && game.state !== 'over') ents.push({ kind: 'pet', e: this.pet });
     for (var i = 0; i < game.monsters.length; i++) ents.push({ kind: 'monster', e: game.monsters[i] });
     for (i = 0; i < ents.length; i++) { var row = Math.max(0, Math.min(H - 1, Math.floor(ents[i].e.y + 0.5))); (buckets[row] = buckets[row] || []).push(ents[i]); }
 
@@ -178,7 +185,7 @@ var PCRender = (function () {
       var b = buckets[y];
       if (b) {
         b.sort(function (a, c) { return a.e.y - c.e.y; });
-        for (var j = 0; j < b.length; j++) { if (b[j].kind === 'player') this.drawPlayer(g, b[j].e, now); else this.drawMonster(g, b[j].e, now); }
+        for (var j = 0; j < b.length; j++) { if (b[j].kind === 'player') this.drawPlayer(g, b[j].e, now); else if (b[j].kind === 'pet') this.drawPet(g, b[j].e, now); else this.drawMonster(g, b[j].e, now); }
       }
     }
 
@@ -353,6 +360,53 @@ var PCRender = (function () {
       g.drawImage(tex.mons[kind][frame], left, Math.round(top), S, S);
       var dir = m.mode === 'pen' ? (Math.sin(now * 3 + m.i) > 0 ? 0 : 2) : m.dir;
       PCTex.drawEyes(g, left, Math.round(top), S / 16, dir, scared);
+    }
+  };
+
+  // The pet is cosmetic: it walks the hero's own trail a tile behind him and touches nothing.
+  R.updatePet = function (dt) {
+    if (!this.petSet) return;
+    var game = this.game, p = game.player, pet = this.pet, tr = pet.trail;
+    var last = tr.length ? tr[tr.length - 1] : null;
+    if (!last || Math.abs(last.x - p.x) > 2 || Math.abs(last.y - p.y) > 2) { tr.length = 0; tr.push({ x: p.x, y: p.y }); pet.x = p.x; pet.y = p.y; }
+    else {
+      var d = Math.hypot(p.x - last.x, p.y - last.y);
+      if (d > 0.06) tr.push({ x: p.x, y: p.y });
+      if (tr.length > 220) tr.splice(0, tr.length - 220);
+    }
+    var want = 1.15, acc = 0, tx = tr[0].x, ty = tr[0].y;   // walk back along the trail
+    for (var i = tr.length - 1; i > 0; i--) {
+      var seg = Math.hypot(tr[i].x - tr[i - 1].x, tr[i].y - tr[i - 1].y);
+      if (acc + seg >= want) {
+        var f = (want - acc) / (seg || 1);
+        tx = tr[i].x + (tr[i - 1].x - tr[i].x) * f; ty = tr[i].y + (tr[i - 1].y - tr[i].y) * f;
+        break;
+      }
+      acc += seg; tx = tr[i - 1].x; ty = tr[i - 1].y;
+    }
+    var dx = tx - pet.x, dy = ty - pet.y, dist = Math.hypot(dx, dy);
+    var speed = Math.max(game.playerSpeed() * 0.9, dist * 6);
+    if (dist > 0.02) {
+      var step = Math.min(dist, speed * dt);
+      pet.x += dx / dist * step; pet.y += dy / dist * step;
+      pet.anim += step * 2.6;
+      pet.idle = 0;
+      if (Math.abs(dx) > Math.abs(dy)) pet.dir = dx > 0 ? 3 : 1; else pet.dir = dy > 0 ? 2 : 0;
+    } else pet.idle += dt;
+  };
+
+  R.drawPet = function (g, pet, now) {
+    var T = this.T, S = Math.round(T * 0.92), set = this.petSet;
+    var dirName = ['up', 'left', 'down', 'right'][pet.dir] || 'down';
+    var moving = pet.idle < 0.25;
+    var frame = moving ? 1 + (Math.floor(pet.anim) % 2) : (pet.idle > 0.9 ? 3 : 0);
+    var cx = this.gx(pet.x), base = this.gy(pet.y) + (T - this.h) / 2;
+    var bob = moving ? -Math.abs(Math.sin(pet.anim * Math.PI)) * T * 0.045 : 0;
+    var draws = [cx];
+    if (pet.x < 0.5) draws.push(cx + W * T); else if (pet.x > W - 1.5) draws.push(cx - W * T);
+    for (var d = 0; d < draws.length; d++) {
+      this.shadow(g, draws[d], base - T * 0.04, T * 0.28);
+      g.drawImage(set[dirName][frame], Math.round(draws[d] - S / 2), Math.round(base - S + bob), S, S);
     }
   };
 

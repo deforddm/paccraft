@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '1.2.1';
+  var VERSION = '1.3.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -10,7 +10,7 @@
   var SAVE_KEY = 'paccraft-save-v1';
   function defaults() {
     return {
-      v: 1, name: 'Max', look: Object.assign({}, PCTex.LOOK_DEFAULT), hats: ['miner', 'cap', 'none'],
+      v: 1, name: 'Max', look: Object.assign({ pet: 'none' }, PCTex.LOOK_DEFAULT), hats: ['miner', 'cap', 'none'], pets: ['none'],
       ores: { coal: 0, iron: 0, gold: 0, diamond: 0, ember: 0 },
       up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, tnt: 1,
       best: 0, maxLevel: 1, difficulty: 'easy',
@@ -176,6 +176,10 @@
       g.beginPath(); g.arc(CX, 20, 4 + t2 * 40, 0, Math.PI * 2); g.stroke();
     }
     if (hx > -20 && hx < c.width + 20) g.drawImage(chase ? set.right[frame] : set.left[frame], Math.round(hx) - 8, 14, 16, 16);
+    if (save.look.pet && save.look.pet !== 'none') {
+      var pw = PCTex.wolf(save.look.shirt), px = chase ? hx - 13 : hx + 13;
+      if (px > -16 && px < c.width + 16) g.drawImage(pw[chase ? 'right' : 'left'][1 + Math.floor(titleT * 9) % 2], Math.round(px) - 8, 17, 14, 14);
+    }
     kinds.forEach(function (k, i) {
       var start = CX - 26 - i * 19;                  // where each monster is when the crystal is grabbed
       var mx = chase ? hx - 26 - i * 19 : start - v * 1.12 * t2;
@@ -646,6 +650,10 @@
     skin: ['#f1c49b', '#e0a877', '#c68a5c', '#9c6640', '#6e4428']
   };
   var HAT_COST = { knight: { iron: 6 }, crown: { gold: 6 }, diamond: { diamond: 5 }, ember: { ember: 3 } };
+  var PETS = [
+    { id: 'none', name: 'No pet' },
+    { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' }
+  ];
   var heroT = 0;
   function renderHero() {
     $('hero-name').value = save.name || '';
@@ -673,6 +681,35 @@
       });
       hb.appendChild(b);
     });
+    var pb = $('sw-pet'); pb.innerHTML = '';
+    PETS.forEach(function (pet) {
+      var b = document.createElement('button'); b.className = 'sw' + ((save.look.pet || 'none') === pet.id ? ' active' : '');
+      b.title = pet.name;
+      if (pet.id === 'none') b.innerHTML = '<span style="font-size:11px;font-weight:900;line-height:48px">NONE</span>';
+      else b.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.wolf(save.look.shirt).right[1], 3) + ')';
+      var owned = (save.pets || ['none']).indexOf(pet.id) >= 0;
+      if (!owned && pet.cost) {
+        var keys = Object.keys(pet.cost);
+        b.innerHTML = '<span class="lock">' + keys.map(function (k) { return img(ICON.ore[k]) + pet.cost[k]; }).join(' ') + '</span>';
+      }
+      b.addEventListener('click', function () {
+        if (!owned && pet.cost) {
+          var can = Object.keys(pet.cost).every(function (k) { return save.ores[k] >= pet.cost[k]; });
+          var priceTxt = Object.keys(pet.cost).map(function (k) { return pet.cost[k] + ' ' + k; }).join(' + ');
+          if (can) {
+            modal('Adopt the wolf?', pet.desc + ' Costs ' + priceTxt + '.', [
+              { label: 'Not now', cls: 'btn-sm' },
+              { label: 'Adopt!', cls: 'btn-gold btn-sm', fn: function () {
+                Object.keys(pet.cost).forEach(function (k) { save.ores[k] -= pet.cost[k]; });
+                save.pets.push(pet.id); save.look.pet = pet.id; persist(true); A.play('unlock'); lookChanged(); renderHero();
+              } }]);
+          } else { A.play('nope'); toast('Need ' + priceTxt + ' to adopt the wolf.'); }
+          return;
+        }
+        A.play('click'); save.look.pet = pet.id; lookChanged(); renderHero();
+      });
+      pb.appendChild(b);
+    });
     ['shirt', 'pants', 'hair', 'skin'].forEach(function (part) {
       var box = $('sw-' + part); box.innerHTML = '';
       LOOKS[part].forEach(function (col) {
@@ -693,6 +730,11 @@
     var f = 1 + Math.floor(heroT * 5) % 2;
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(32, 56, 16, 5, 0, 0, 7); g.fill();
     g.drawImage(set[v][f], 8, 6, 48, 48);
+    if (save.look.pet && save.look.pet !== 'none') {
+      var pw = PCTex.wolf(save.look.shirt), pv = v === 'up' ? 'up' : (v === 'down' ? 'down' : v);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(v === 'left' ? 50 : 14, 57, 10, 3, 0, 0, 7); g.fill();
+      g.drawImage(pw[pv][1 + Math.floor(heroT * 5) % 2], v === 'left' ? 36 : 0, 30, 28, 28);
+    }
     var pk = tex.picks[save.up.pick];
     g.save(); g.translate(v === 'left' ? 14 : 50, 42); if (v === 'left') g.scale(-1, 1); g.rotate(-0.4); g.drawImage(pk, -4, -22, 26, 26); g.restore();
   }
