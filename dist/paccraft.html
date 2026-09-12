@@ -378,6 +378,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <input id="hero-name" class="text-in" maxlength="12" autocomplete="off" spellcheck="false">
       </div>
       <div class="panel"><div class="label">Hat</div><div class="swatches" id="sw-hat"></div></div>
+      <div class="panel"><div class="label">Pet</div><div class="swatches" id="sw-pet"></div></div>
       <div class="panel"><div class="label">Shirt</div><div class="swatches" id="sw-shirt"></div></div>
       <div class="panel"><div class="label">Pants</div><div class="swatches" id="sw-pants"></div></div>
       <div class="panel"><div class="label">Hair</div><div class="swatches" id="sw-hair"></div></div>
@@ -1723,6 +1724,62 @@ var PCTex = (function () {
     return outline(c);
   }
 
+  // ---------------- pet wolf (cosmetic) ----------------
+  // frames: 0 = stand, 1/2 = trot, 3 = sit (used when the hero stands still)
+  function wolfSprite(view, frame, collar) {
+    var c = mk(16, 16), P = painter(c);
+    var fur = '#c3c8d2', furD = '#98a1af', furL = '#eef1f7', dark = '#2b2b36';
+    collar = collar || '#d8322b';
+    var sit = frame === 3, trot = frame === 1 || frame === 2, lift = frame === 2 ? 1 : 0;
+    if (view === 'side') {
+      P.r(1, sit ? 6 : 5, 2, 4, fur); P.p(1, sit ? 5 : 4, furL); P.p(2, sit ? 5 : 4, furD);   // tail
+      if (sit) {
+        P.r(3, 9, 6, 4, furD); P.r(4, 8, 6, 3, fur);                                          // haunches
+        P.r(8, 5, 5, 6, fur); P.r(9, 9, 3, 3, furL);                                          // upright chest
+        P.r(8, 12, 4, 1, furD); P.r(9, 13, 2, 1, furD);                                       // front paws
+      } else {
+        P.r(3, 6, 9, 5, fur); P.r(3, 9, 9, 2, furD); P.r(8, 8, 4, 2, furL);
+        P.r(4, 11, 2, 3 - lift, furD); P.r(9, 11, 2, 3 - (1 - lift), furD);                   // legs
+        P.r(6, 11, 2, 2 + lift, fur); P.r(11, 11, 1, 2 + (1 - lift), fur);
+      }
+      var hy = sit ? 2 : 3;
+      P.r(10, hy, 5, 5, fur); P.r(13, hy + 2, 3, 3, furL); P.p(15, hy + 3, dark);              // head + muzzle
+      P.r(12, hy + 1, 1, 2, dark);                                                            // eye
+      P.p(10, hy - 1, furD); P.p(11, hy - 1, fur); P.p(14, hy - 1, fur); P.p(13, hy - 1, furD); // ears
+      P.r(10, hy + 5, 3, 1, collar);
+    } else if (view === 'down') {
+      P.p(4, 1, furD); P.p(5, 1, fur); P.p(10, 1, fur); P.p(11, 1, furD);                     // ears
+      P.p(4, 2, furD); P.p(11, 2, furD);
+      P.r(5, 2, 6, 6, fur);                                                                   // head
+      P.r(6, 5, 4, 3, furL); P.r(7, 6, 2, 1, dark);                                           // muzzle + nose
+      P.r(6, 3, 1, 2, dark); P.r(9, 3, 1, 2, dark);                                           // eyes
+      P.r(5, 8, 6, 1, collar);
+      P.r(4, 9, 8, 5, fur); P.r(4, 12, 8, 2, furD); P.r(6, 9, 4, 3, furL);                    // body + chest
+      P.r(4, 13, 2, 2 - lift, furD); P.r(10, 13, 2, 2 - (1 - lift), furD);                    // front paws
+      if (sit) { P.r(3, 12, 2, 2, furD); P.r(11, 12, 2, 2, furD); }
+    } else { // up (trotting away)
+      P.p(4, 1, furD); P.p(5, 1, fur); P.p(10, 1, fur); P.p(11, 1, furD);                     // ears
+      P.r(5, 2, 6, 4, furD); P.r(6, 3, 4, 2, fur);                                            // back of the head
+      P.r(4, 6, 8, 8, fur); P.r(4, 6, 8, 1, furD);
+      P.r(3, 4, 2, 5, furL); P.p(3, 3, furL); P.p(2, 5, furL);                                // bushy tail, held up
+      P.r(6, 8, 4, 4, furD);                                                                  // back fur shading
+      P.r(4, 13, 2, 2 - lift, furD); P.r(10, 13, 2, 2 - (1 - lift), furD);
+    }
+    return outline(c);
+  }
+  var wolfCache = {};
+  function wolf(collar) {
+    var key = collar || 'x';
+    if (wolfCache[key]) return wolfCache[key];
+    var set = { down: [], up: [], right: [], left: [] };
+    for (var f = 0; f < 4; f++) {
+      set.down.push(wolfSprite('down', f, collar)); set.up.push(wolfSprite('up', f, collar));
+      var s = wolfSprite('side', f, collar); set.right.push(s); set.left.push(flipX(s));
+    }
+    wolfCache[key] = set;
+    return set;
+  }
+
   // ---------------- monsters ----------------
   var MON = {
     rumble: { body: '#d2402f', dark: '#8f2419', light: '#f0674f' },
@@ -1969,7 +2026,7 @@ var PCTex = (function () {
   }
 
   return {
-    build: build, hero: hero, HATS: HATS, LOOK_DEFAULT: LOOK_DEFAULT, drawEyes: drawEyes, cubeIcon: cubeIcon,
+    build: build, hero: hero, wolf: wolf, HATS: HATS, LOOK_DEFAULT: LOOK_DEFAULT, drawEyes: drawEyes, cubeIcon: cubeIcon,
     drawText: drawText, textWidth: textWidth, dataURL: dataURL, mk: mk, shade: shade, outline: outline, GLYPH: GLYPH, FLOOR: FLOOR
   };
 })();
@@ -2193,7 +2250,11 @@ var PCRender = (function () {
   }
   var R = Renderer.prototype;
 
-  R.setLook = function (look) { this.look = look; this.heroSet = PCTex.hero(look); };
+  R.setLook = function (look) {
+    this.look = look; this.heroSet = PCTex.hero(look);
+    this.petSet = (look.pet && look.pet !== 'none') ? PCTex.wolf(look.shirt) : null;
+    this.pet = { x: 0, y: 0, dir: 2, anim: 0, idle: 0, trail: [] };
+  };
 
   R.resize = function (cssW, cssH) {
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -2212,6 +2273,7 @@ var PCRender = (function () {
     this.game = game; this.particles = []; this.popups = []; this.shake = 0; this.flash = 0;
     this.biome = game.L.biome; this.dirty = true;
     if (!this.heroSet) this.heroSet = PCTex.hero(this.look);
+    if (this.pet) { this.pet.trail = []; this.pet.x = game.player.x; this.pet.y = game.player.y; }
   };
 
   // screen position of a tile's "ground centre"
@@ -2338,9 +2400,11 @@ var PCRender = (function () {
     for (var k = 0; k < game.tnts.length; k++) this.drawTnt(g, game.tnts[k], now);
 
     // entity list bucketed by row
+    this.updatePet(dt);
     var buckets = [];
     var ents = [];
     ents.push({ kind: 'player', e: game.player });
+    if (this.petSet && game.state !== 'dying' && game.state !== 'over') ents.push({ kind: 'pet', e: this.pet });
     for (var i = 0; i < game.monsters.length; i++) ents.push({ kind: 'monster', e: game.monsters[i] });
     for (i = 0; i < ents.length; i++) { var row = Math.max(0, Math.min(H - 1, Math.floor(ents[i].e.y + 0.5))); (buckets[row] = buckets[row] || []).push(ents[i]); }
 
@@ -2352,7 +2416,7 @@ var PCRender = (function () {
       var b = buckets[y];
       if (b) {
         b.sort(function (a, c) { return a.e.y - c.e.y; });
-        for (var j = 0; j < b.length; j++) { if (b[j].kind === 'player') this.drawPlayer(g, b[j].e, now); else this.drawMonster(g, b[j].e, now); }
+        for (var j = 0; j < b.length; j++) { if (b[j].kind === 'player') this.drawPlayer(g, b[j].e, now); else if (b[j].kind === 'pet') this.drawPet(g, b[j].e, now); else this.drawMonster(g, b[j].e, now); }
       }
     }
 
@@ -2527,6 +2591,53 @@ var PCRender = (function () {
       g.drawImage(tex.mons[kind][frame], left, Math.round(top), S, S);
       var dir = m.mode === 'pen' ? (Math.sin(now * 3 + m.i) > 0 ? 0 : 2) : m.dir;
       PCTex.drawEyes(g, left, Math.round(top), S / 16, dir, scared);
+    }
+  };
+
+  // The pet is cosmetic: it walks the hero's own trail a tile behind him and touches nothing.
+  R.updatePet = function (dt) {
+    if (!this.petSet) return;
+    var game = this.game, p = game.player, pet = this.pet, tr = pet.trail;
+    var last = tr.length ? tr[tr.length - 1] : null;
+    if (!last || Math.abs(last.x - p.x) > 2 || Math.abs(last.y - p.y) > 2) { tr.length = 0; tr.push({ x: p.x, y: p.y }); pet.x = p.x; pet.y = p.y; }
+    else {
+      var d = Math.hypot(p.x - last.x, p.y - last.y);
+      if (d > 0.06) tr.push({ x: p.x, y: p.y });
+      if (tr.length > 220) tr.splice(0, tr.length - 220);
+    }
+    var want = 1.15, acc = 0, tx = tr[0].x, ty = tr[0].y;   // walk back along the trail
+    for (var i = tr.length - 1; i > 0; i--) {
+      var seg = Math.hypot(tr[i].x - tr[i - 1].x, tr[i].y - tr[i - 1].y);
+      if (acc + seg >= want) {
+        var f = (want - acc) / (seg || 1);
+        tx = tr[i].x + (tr[i - 1].x - tr[i].x) * f; ty = tr[i].y + (tr[i - 1].y - tr[i].y) * f;
+        break;
+      }
+      acc += seg; tx = tr[i - 1].x; ty = tr[i - 1].y;
+    }
+    var dx = tx - pet.x, dy = ty - pet.y, dist = Math.hypot(dx, dy);
+    var speed = Math.max(game.playerSpeed() * 0.9, dist * 6);
+    if (dist > 0.02) {
+      var step = Math.min(dist, speed * dt);
+      pet.x += dx / dist * step; pet.y += dy / dist * step;
+      pet.anim += step * 2.6;
+      pet.idle = 0;
+      if (Math.abs(dx) > Math.abs(dy)) pet.dir = dx > 0 ? 3 : 1; else pet.dir = dy > 0 ? 2 : 0;
+    } else pet.idle += dt;
+  };
+
+  R.drawPet = function (g, pet, now) {
+    var T = this.T, S = Math.round(T * 0.92), set = this.petSet;
+    var dirName = ['up', 'left', 'down', 'right'][pet.dir] || 'down';
+    var moving = pet.idle < 0.25;
+    var frame = moving ? 1 + (Math.floor(pet.anim) % 2) : (pet.idle > 0.9 ? 3 : 0);
+    var cx = this.gx(pet.x), base = this.gy(pet.y) + (T - this.h) / 2;
+    var bob = moving ? -Math.abs(Math.sin(pet.anim * Math.PI)) * T * 0.045 : 0;
+    var draws = [cx];
+    if (pet.x < 0.5) draws.push(cx + W * T); else if (pet.x > W - 1.5) draws.push(cx - W * T);
+    for (var d = 0; d < draws.length; d++) {
+      this.shadow(g, draws[d], base - T * 0.04, T * 0.28);
+      g.drawImage(set[dirName][frame], Math.round(draws[d] - S / 2), Math.round(base - S + bob), S, S);
     }
   };
 
@@ -2742,7 +2853,7 @@ var PCBuilder = (function () {
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '1.2.1';
+  var VERSION = '1.3.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -2751,7 +2862,7 @@ var PCBuilder = (function () {
   var SAVE_KEY = 'paccraft-save-v1';
   function defaults() {
     return {
-      v: 1, name: 'Max', look: Object.assign({}, PCTex.LOOK_DEFAULT), hats: ['miner', 'cap', 'none'],
+      v: 1, name: 'Max', look: Object.assign({ pet: 'none' }, PCTex.LOOK_DEFAULT), hats: ['miner', 'cap', 'none'], pets: ['none'],
       ores: { coal: 0, iron: 0, gold: 0, diamond: 0, ember: 0 },
       up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, tnt: 1,
       best: 0, maxLevel: 1, difficulty: 'easy',
@@ -2917,6 +3028,10 @@ var PCBuilder = (function () {
       g.beginPath(); g.arc(CX, 20, 4 + t2 * 40, 0, Math.PI * 2); g.stroke();
     }
     if (hx > -20 && hx < c.width + 20) g.drawImage(chase ? set.right[frame] : set.left[frame], Math.round(hx) - 8, 14, 16, 16);
+    if (save.look.pet && save.look.pet !== 'none') {
+      var pw = PCTex.wolf(save.look.shirt), px = chase ? hx - 13 : hx + 13;
+      if (px > -16 && px < c.width + 16) g.drawImage(pw[chase ? 'right' : 'left'][1 + Math.floor(titleT * 9) % 2], Math.round(px) - 8, 17, 14, 14);
+    }
     kinds.forEach(function (k, i) {
       var start = CX - 26 - i * 19;                  // where each monster is when the crystal is grabbed
       var mx = chase ? hx - 26 - i * 19 : start - v * 1.12 * t2;
@@ -3387,6 +3502,10 @@ var PCBuilder = (function () {
     skin: ['#f1c49b', '#e0a877', '#c68a5c', '#9c6640', '#6e4428']
   };
   var HAT_COST = { knight: { iron: 6 }, crown: { gold: 6 }, diamond: { diamond: 5 }, ember: { ember: 3 } };
+  var PETS = [
+    { id: 'none', name: 'No pet' },
+    { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' }
+  ];
   var heroT = 0;
   function renderHero() {
     $('hero-name').value = save.name || '';
@@ -3414,6 +3533,35 @@ var PCBuilder = (function () {
       });
       hb.appendChild(b);
     });
+    var pb = $('sw-pet'); pb.innerHTML = '';
+    PETS.forEach(function (pet) {
+      var b = document.createElement('button'); b.className = 'sw' + ((save.look.pet || 'none') === pet.id ? ' active' : '');
+      b.title = pet.name;
+      if (pet.id === 'none') b.innerHTML = '<span style="font-size:11px;font-weight:900;line-height:48px">NONE</span>';
+      else b.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.wolf(save.look.shirt).right[1], 3) + ')';
+      var owned = (save.pets || ['none']).indexOf(pet.id) >= 0;
+      if (!owned && pet.cost) {
+        var keys = Object.keys(pet.cost);
+        b.innerHTML = '<span class="lock">' + keys.map(function (k) { return img(ICON.ore[k]) + pet.cost[k]; }).join(' ') + '</span>';
+      }
+      b.addEventListener('click', function () {
+        if (!owned && pet.cost) {
+          var can = Object.keys(pet.cost).every(function (k) { return save.ores[k] >= pet.cost[k]; });
+          var priceTxt = Object.keys(pet.cost).map(function (k) { return pet.cost[k] + ' ' + k; }).join(' + ');
+          if (can) {
+            modal('Adopt the wolf?', pet.desc + ' Costs ' + priceTxt + '.', [
+              { label: 'Not now', cls: 'btn-sm' },
+              { label: 'Adopt!', cls: 'btn-gold btn-sm', fn: function () {
+                Object.keys(pet.cost).forEach(function (k) { save.ores[k] -= pet.cost[k]; });
+                save.pets.push(pet.id); save.look.pet = pet.id; persist(true); A.play('unlock'); lookChanged(); renderHero();
+              } }]);
+          } else { A.play('nope'); toast('Need ' + priceTxt + ' to adopt the wolf.'); }
+          return;
+        }
+        A.play('click'); save.look.pet = pet.id; lookChanged(); renderHero();
+      });
+      pb.appendChild(b);
+    });
     ['shirt', 'pants', 'hair', 'skin'].forEach(function (part) {
       var box = $('sw-' + part); box.innerHTML = '';
       LOOKS[part].forEach(function (col) {
@@ -3434,6 +3582,11 @@ var PCBuilder = (function () {
     var f = 1 + Math.floor(heroT * 5) % 2;
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(32, 56, 16, 5, 0, 0, 7); g.fill();
     g.drawImage(set[v][f], 8, 6, 48, 48);
+    if (save.look.pet && save.look.pet !== 'none') {
+      var pw = PCTex.wolf(save.look.shirt), pv = v === 'up' ? 'up' : (v === 'down' ? 'down' : v);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(v === 'left' ? 50 : 14, 57, 10, 3, 0, 0, 7); g.fill();
+      g.drawImage(pw[pv][1 + Math.floor(heroT * 5) % 2], v === 'left' ? 36 : 0, 30, 28, 28);
+    }
     var pk = tex.picks[save.up.pick];
     g.save(); g.translate(v === 'left' ? 14 : 50, 42); if (v === 'left') g.scale(-1, 1); g.rotate(-0.4); g.drawImage(pk, -4, -22, 26, 26); g.restore();
   }
