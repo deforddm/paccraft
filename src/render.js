@@ -116,6 +116,7 @@ var PCRender = (function () {
         case 'boom': this.boom(e.x, e.y); break;
         case 'food': this.popup(e.x, e.y, '+' + e.pts, '#ffd23d'); if (e.healed) this.popup(e.x, e.y - 0.8, '+1 HEART', '#ff6b7a'); this.puff(e.x, e.y, 6, '#ffe8a0'); break;
         case 'crystal': this.ring(e.x, e.y, '#e36bff'); break;
+        case 'shield': this.ring(e.x, e.y, '#ff8a1f'); this.puff(e.x, e.y, 8, '#ffb13b'); this.popup(e.x, e.y - 0.6, 'ARMOR!', '#ffb13b'); this.shake = 0.25; break;
         case 'extralife': this.popup(this.game.player.x, this.game.player.y - 1, 'EXTRA HEART!', '#ff6b7a'); break;
         case 'death': this.deathAt = { x: e.x, y: e.y }; break;
         case 'clear': this.flash = 0; this.clearT = 0; break;
@@ -284,10 +285,17 @@ var PCRender = (function () {
         g.fillStyle = gl; g.fillRect(x0 - T, base - S - T * 0.5, 2 * T, 2 * T);
       }
       this.shadow(g, x0, base - T * 0.04, T * 0.32);
+      if (game.shield > 0 || game.invuln > 0) {          // emberite armour: glowing ring at your feet
+        var pulse = 0.5 + Math.sin(now * (game.invuln > 0 ? 18 : 4)) * 0.3;
+        g.strokeStyle = 'rgba(255,138,31,' + pulse + ')'; g.lineWidth = Math.max(2, T * 0.09);
+        g.beginPath(); g.ellipse(x0, base - T * 0.04, T * 0.42, T * 0.18, 0, 0, Math.PI * 2); g.stroke();
+      }
       var clearJump = (game.state === 'clear' || game.state === 'done') ? -Math.abs(Math.sin(now * 8)) * T * 0.3 : 0;
       var top = base - S + bob + clearJump;
+      if (game.invuln > 0 && Math.floor(now * 12) % 2 === 0) { g.globalAlpha = 0.45; }
       g.drawImage(set[dirName][frame], Math.round(x0 - S / 2), Math.round(top), S, S);
       this.drawPick(g, p, x0, top, S, now, dirName);
+      g.globalAlpha = 1;
     }
   };
 

@@ -130,6 +130,16 @@ var PCTex = (function () {
         }
         return c;
     }
+    if (t === TILE.EMBER) { // the rarest ore: dark rock with glowing ember chunks
+      c = noiseTex(r, PAL.basalt); P = painter(c);
+      [[2, 3], [8, 2], [4, 9], [10, 10], [6, 6]].forEach(function (s2) {
+        var ox = s2[0] + Math.floor(r() * 2), oy = s2[1] + Math.floor(r() * 2);
+        P.p(ox, oy, '#8a6247'); P.p(ox + 1, oy, '#6b4a3a'); P.p(ox, oy + 1, '#6b4a3a'); P.p(ox + 1, oy + 1, '#4a3128');
+        if (r() < 0.75) { P.p(ox + 2, oy + 1, '#ff8a1f'); P.p(ox + 1, oy + 2, '#c9531a'); }
+      });
+      for (i = 0; i < 4; i++) P.p(Math.floor(r() * 16), Math.floor(r() * 16), '#ffb13b');
+      return c;
+    }
     if (t >= TILE.COAL && t <= TILE.DIAMOND) { // ore = stone + mineral clusters
       c = noiseTex(r, PAL.stone); P = painter(c);
       var ore = { 30: ['#1e1e22', '#34343a', '#2a2a2e'], 31: ['#d8ae90', '#c49a7c', '#ecc9ae'], 32: ['#fbe44a', '#e6bd28', '#fff58c'], 33: ['#5ce1e6', '#35c0c8', '#bdfcff'] }[t];
@@ -218,7 +228,7 @@ var PCTex = (function () {
   }
 
   // ---------------- hero ----------------
-  var HATS = ['miner', 'cap', 'none', 'crown', 'diamond', 'knight'];
+  var HATS = ['miner', 'cap', 'none', 'crown', 'diamond', 'knight', 'ember'];
   function heroSprite(view, frame, look) {
     // view: 'down' | 'up' | 'side' (faces right). frame: 0 stand, 1 step A, 2 step B
     var c = mk(16, 16), P = painter(c);
@@ -286,6 +296,13 @@ var PCTex = (function () {
         P.r(x0 + 1, 1, 3, 1, '#c8feff'); P.p(x0 + 1, 2, '#c8feff');
         if (view === 'down') { P.r(x0, 4, 1, 3, '#2fb3bd'); P.r(x0 + w - 1, 4, 1, 3, '#2fb3bd'); }
         break;
+      case 'ember':
+        P.r(x0 + 1, 0, w - 2, 1, '#6a5560'); P.r(x0, 1, w, 4, '#584754'); P.r(x0, 4, w, 1, '#3a2d36');
+        P.r(x0 + 1, 1, 2, 1, '#8a7482');
+        P.p(x0 + 2, 3, '#ff8a1f'); P.p(x0 + Math.floor(w / 2), 3, '#ffb13b'); P.p(x0 + w - 3, 3, '#ff8a1f');
+        if (view === 'down') { P.r(x0, 4, 1, 3, '#3a2d36'); P.r(x0 + w - 1, 4, 1, 3, '#3a2d36'); P.p(7, 0, '#ff8a1f'); P.p(8, 0, '#ff8a1f'); }
+        if (side) P.p(12, 2, '#ff8a1f');
+        break;
       case 'knight':
         P.r(x0 + 1, 0, w - 2, 1, '#c7ccd6'); P.r(x0, 1, w, 4, '#b4bac6'); P.r(x0, 4, w, 1, '#8b92a1');
         P.r(x0 + 1, 1, 2, 1, '#eef1f6');
@@ -297,7 +314,7 @@ var PCTex = (function () {
 
   // pickaxe 12x12, head at top-right
   function pickaxe(tier) {
-    var cols = [['#b8894d', '#8a6331'], ['#9a9a9e', '#6e6e74'], ['#e4e6ea', '#a8adb6'], ['#5fe3e8', '#2aa9b3']][tier] || ['#b8894d', '#8a6331'];
+    var cols = [['#b8894d', '#8a6331'], ['#9a9a9e', '#6e6e74'], ['#e4e6ea', '#a8adb6'], ['#5fe3e8', '#2aa9b3'], ['#6a5560', '#3a2d36']][tier] || ['#b8894d', '#8a6331'];
     var c = mk(12, 12), P = painter(c);
     // handle
     for (var i = 0; i < 7; i++) { P.p(2 + i, 9 - i, '#7a5530'); P.p(2 + i, 10 - i, '#5a3c20'); }
@@ -305,6 +322,7 @@ var PCTex = (function () {
     [[3, 1], [4, 1], [5, 1], [6, 1], [7, 2], [8, 2], [9, 3], [9, 4], [10, 5], [10, 6], [10, 7]].forEach(function (q) { P.p(q[0], q[1], cols[0]); });
     [[4, 2], [5, 2], [6, 2], [8, 3], [9, 5], [9, 6], [7, 3]].forEach(function (q) { P.p(q[0], q[1], cols[1]); });
     P.p(3, 1, shade(cols[0], 0.35)); P.p(10, 7, shade(cols[0], 0.35));
+    if (tier === 4) { P.p(5, 1, '#ff8a1f'); P.p(9, 3, '#ffb13b'); P.p(10, 6, '#ff8a1f'); } // ember glow
     return outline(c);
   }
 
@@ -417,6 +435,9 @@ var PCTex = (function () {
     else if (kind === 'diamond') {
       P.r(3, 2, 6, 1, '#8ff3f6'); P.r(2, 3, 8, 2, '#5ce1e6'); P.r(3, 5, 6, 1, '#3fc3c9'); P.r(4, 6, 4, 1, '#3fc3c9'); P.r(5, 7, 2, 2, '#2aa9b3');
       P.p(3, 3, '#ffffff'); P.p(4, 3, '#dfffff');
+    } else if (kind === 'ember') { // ember ingot: dark metal with a glowing seam
+      P.r(1, 6, 10, 3, '#584754'); P.r(2, 4, 8, 2, '#6a5560'); P.r(1, 8, 10, 1, '#3a2d36'); P.r(2, 4, 6, 1, '#9d8695'); P.p(2, 5, '#9d8695');
+      P.p(3, 7, '#ff8a1f'); P.p(5, 7, '#ffb13b'); P.p(7, 7, '#ff8a1f'); P.p(9, 6, '#c9531a');
     } else { // ingots
       var col = kind === 'gold' ? ['#fbe44a', '#e6bd28', '#fff7b0', '#b8901a'] : ['#e6e8ec', '#b8bcc6', '#ffffff', '#8b909c'];
       P.r(1, 6, 10, 3, col[0]); P.r(2, 4, 8, 2, col[0]); P.r(1, 8, 10, 1, col[1]); P.r(2, 4, 6, 1, col[2]); P.r(10, 6, 1, 3, col[3]);
@@ -512,8 +533,8 @@ var PCTex = (function () {
     cache = {
       blocks: blocks, floors: floors, mons: mons, food: food, cracks: cracks(),
       crystal: crystalSprite(), tnt: [tntSprite(false), tntSprite(true)],
-      picks: [pickaxe(0), pickaxe(1), pickaxe(2), pickaxe(3)],
-      ores: { coal: oreIcon('coal'), iron: oreIcon('iron'), gold: oreIcon('gold'), diamond: oreIcon('diamond') },
+      picks: [pickaxe(0), pickaxe(1), pickaxe(2), pickaxe(3), pickaxe(4)],
+      ores: { coal: oreIcon('coal'), iron: oreIcon('iron'), gold: oreIcon('gold'), diamond: oreIcon('diamond'), ember: oreIcon('ember') },
       heart: [heartIcon(false), heartIcon(true)], boot: bootIcon(), magnet: magnetIcon(), bag: bagIcon()
     };
     var gb = noiseTex(r, ['#f7d23a', '#f2c42a', '#fbe05a', '#e8b820']), gp = painter(gb);

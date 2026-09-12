@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -11,8 +11,8 @@
   function defaults() {
     return {
       v: 1, name: 'Max', look: Object.assign({}, PCTex.LOOK_DEFAULT), hats: ['miner', 'cap', 'none'],
-      ores: { coal: 0, iron: 0, gold: 0, diamond: 0 },
-      up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0 }, tnt: 1,
+      ores: { coal: 0, iron: 0, gold: 0, diamond: 0, ember: 0 },
+      up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, tnt: 1,
       best: 0, maxLevel: 1, difficulty: 'easy',
       settings: { sfx: true, music: true, haptics: true, dpad: true, lefty: false, pushDig: true },
       levels: [], stats: { gems: 0, bonks: 0, mined: 0, games: 0 }, tips: 0
@@ -67,7 +67,7 @@
     ICON.craft = PCTex.dataURL(tableCube, 1);
     ICON.hero = PCTex.dataURL(PCTex.hero(save.look).down[0], 4);
     ICON.build = PCTex.dataURL(PCTex.cubeIcon(tex.blocks[TILE.GRASS], 48), 1);
-    ICON.ore = {}; ['coal', 'iron', 'gold', 'diamond'].forEach(function (k) { ICON.ore[k] = PCTex.dataURL(tex.ores[k], 4); });
+    ICON.ore = {}; ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { ICON.ore[k] = PCTex.dataURL(tex.ores[k], 4); });
     ICON.heart = [PCTex.dataURL(tex.heart[0], 4), PCTex.dataURL(tex.heart[1], 4)];
     ICON.pick = tex.picks.map(function (p) { return PCTex.dataURL(p, 4); });
     ICON.planks = PCTex.dataURL(PCTex.cubeIcon(tex.blocks[TILE.PLANKS], 48), 1);
@@ -190,7 +190,7 @@
   function enterTitle() {
     $('hello').textContent = 'Hi, ' + (save.name || 'Max') + '!';
     var st = '<span class="st">' + img(ICON.heart[1]) + 'Best ' + save.best + '</span><span class="st">Level ' + save.maxLevel + '</span>';
-    ['coal', 'iron', 'gold', 'diamond'].forEach(function (k) { st += '<span class="st">' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
+    ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { st += '<span class="st">' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
     $('title-stats').innerHTML = st;
     var hi = document.querySelector('#btn-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
   }
@@ -358,6 +358,7 @@
         case 'boom': A.play('boom'); A.buzz([40, 30, 60]); break;
         case 'crumble': A.play('crumble'); break;
         case 'eat': A.play('eat'); A.buzz(25); save.stats.bonks++; break;
+        case 'shield': A.play('shieldhit'); A.buzz([50, 40, 50]); toastSoft('Your armor took the hit!'); break;
         case 'food': A.play('food'); break;
         case 'food-spawn': A.play('foodspawn'); break;
         case 'extralife': A.play('extralife'); break;
@@ -387,7 +388,7 @@
 
   function oreSummary(o) {
     var s = '';
-    ['coal', 'iron', 'gold', 'diamond'].forEach(function (k) { if (o[k]) s += '<span>' + img(ICON.ore[k]) + ' ×' + o[k] + '</span>'; });
+    ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { if (o[k]) s += '<span>' + img(ICON.ore[k]) + ' ×' + o[k] + '</span>'; });
     return s || '<span style="color:var(--muted)">No ores this time — try digging ore blocks!</span>';
   }
   function onLevelClear() {
@@ -456,6 +457,11 @@
       for (var i = 0; i < g.maxHearts; i++) h += img(ICON.heart[i < g.hearts ? 1 : 0], lastHud.hearts != null && i === g.hearts - 1 && g.hearts > lastHud.hearts ? 'pop' : '');
       $('hud-hearts').innerHTML = h; lastHud.hearts = g.hearts; lastHud.maxH = g.maxHearts;
     }
+    if (lastHud.shield !== g.shield) {
+      var sh = '';
+      for (var si = 0; si < (g.up.armor || 0); si++) sh += '<img src="' + ICON.ore.ember + '" alt="" class="' + (si < g.shield ? 'on' : 'off') + '">';
+      $('hud-armor').innerHTML = sh; lastHud.shield = g.shield;
+    }
     if (lastHud.score !== g.score) { $('hud-score').textContent = g.score; lastHud.score = g.score; }
     if (lastHud.gems !== g.gemsLeft) { $('hud-gems').textContent = g.gemsLeft; lastHud.gems = g.gemsLeft; }
     if (lastHud.blocks !== g.blocks) { $('cnt-block').textContent = g.blocks; $('act-block').classList.toggle('empty', g.blocks <= 0); lastHud.blocks = g.blocks; }
@@ -463,7 +469,7 @@
     var ok = JSON.stringify(g.orestaken);
     if (lastHud.ores !== ok) {
       var s = '';
-      ['coal', 'iron', 'gold', 'diamond'].forEach(function (k) { if (g.orestaken[k]) s += '<span class="oc">' + img(ICON.ore[k]) + g.orestaken[k] + '</span>'; });
+      ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { if (g.orestaken[k]) s += '<span class="oc">' + img(ICON.ore[k]) + g.orestaken[k] + '</span>'; });
       $('hud-ores').innerHTML = s; lastHud.ores = ok;
     }
     var lv = session.mode === 'adventure' ? 'LV ' + session.levelNum : 'MY LEVEL';
@@ -577,16 +583,18 @@
 
   // ================= crafting table =================
   var RECIPES = [
-    { id: 'pick', max: 3, names: ['Stone Pickaxe', 'Iron Pickaxe', 'Diamond Pickaxe'], desc: 'Dig through blocks faster.',
-      cost: [{ coal: 4 }, { iron: 6, coal: 2 }, { diamond: 4, gold: 2 }], icon: function (lv) { return ICON.pick[Math.min(3, lv + 1)]; } },
-    { id: 'boots', max: 3, names: ['Speedy Boots'], desc: 'Run a little faster than before.',
-      cost: [{ iron: 3 }, { iron: 3, gold: 3 }, { gold: 3, diamond: 2 }], icon: function () { return ICON.boot; } },
+    { id: 'pick', max: 4, names: ['Stone Pickaxe', 'Iron Pickaxe', 'Diamond Pickaxe', 'Emberite Pickaxe'], desc: 'Dig through blocks faster. Ember Ore is so tough you need a good pickaxe for it.',
+      cost: [{ coal: 4 }, { iron: 6, coal: 2 }, { diamond: 4, gold: 2 }, { ember: 3, diamond: 2 }], icon: function (lv) { return ICON.pick[Math.min(4, lv + 1)]; } },
+    { id: 'boots', max: 4, names: ['Speedy Boots', 'Speedy Boots', 'Speedy Boots', 'Emberite Boots'], desc: 'Run a little faster than before.',
+      cost: [{ iron: 3 }, { iron: 3, gold: 3 }, { gold: 3, diamond: 2 }, { ember: 2, gold: 4 }], icon: function () { return ICON.boot; } },
     { id: 'hearts', max: 2, names: ['Extra Heart'], desc: 'Start every level with one more heart.',
       cost: [{ iron: 3, gold: 4 }, { gold: 4, diamond: 3 }], icon: function () { return ICON.heart[1]; } },
     { id: 'power', max: 3, names: ['Crystal Power'], desc: 'Monsters stay scared 1.5 seconds longer.',
       cost: [{ coal: 3, iron: 1 }, { iron: 4, gold: 1 }, { gold: 4, diamond: 1 }], icon: function () { return ICON.crystal; } },
     { id: 'bag', max: 3, names: ['Block Bag'], desc: 'Carry 3 more blocks and start levels with extras.',
       cost: [{ coal: 2 }, { coal: 4, iron: 2 }, { iron: 4, gold: 2 }], icon: function () { return ICON.bag; } },
+    { id: 'armor', max: 2, names: ['Emberite Armor'], desc: 'Tough ember plating soaks up one monster hit each level, then you flash and get a moment to run.',
+      cost: [{ ember: 2, iron: 4 }, { ember: 4, diamond: 3 }], icon: function () { return ICON.ore.ember; } },
     { id: 'magnet', max: 1, names: ['Gem Magnet'], desc: 'Scoop up gems right next to you, too!',
       cost: [{ iron: 5, gold: 3 }], icon: function () { return ICON.magnet; } },
     { id: 'tnt', max: 5, consumable: true, names: ['TNT'], desc: 'Drop it and run! Blasts walls and bonks monsters. It won\'t hurt you.',
@@ -595,7 +603,7 @@
   function canAfford(cost) { return Object.keys(cost).every(function (k) { return save.ores[k] >= cost[k]; }); }
   function renderCraft() {
     var bank = '';
-    ['coal', 'iron', 'gold', 'diamond'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
+    ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
     $('ore-bank').innerHTML = bank;
     $('craft-foot').hidden = !craftThen;
     var box = $('recipes'); box.innerHTML = '';
@@ -637,7 +645,7 @@
     hair: ['#5a3a22', '#2a1c14', '#d9a441', '#b5552a', '#e8e0d0', '#3a3a3a'],
     skin: ['#f1c49b', '#e0a877', '#c68a5c', '#9c6640', '#6e4428']
   };
-  var HAT_COST = { knight: { iron: 6 }, crown: { gold: 6 }, diamond: { diamond: 5 } };
+  var HAT_COST = { knight: { iron: 6 }, crown: { gold: 6 }, diamond: { diamond: 5 }, ember: { ember: 3 } };
   var heroT = 0;
   function renderHero() {
     $('hero-name').value = save.name || '';
@@ -790,6 +798,8 @@
       [scene(function (g) { g.drawImage(tex.crystal, 2, 4, 12, 14); g.drawImage(tex.mons.fright[0], 16, 12, 16, 16); PCTex.drawEyes(g, 16, 12, 1, 0, true); }), 'Power Crystals', 'Grab one and the monsters turn blue. Now YOU chase THEM for big points!'],
       [scene(function (g) { g.drawImage(tex.blocks[TILE.STONE].top, 16, 8); g.drawImage(tex.cracks[3], 16, 8); g.drawImage(tex.picks[0], 2, 8, 14, 14); }), 'Dig!', 'Push into a wall or tap DIG to mine it and make a shortcut. The gray edge (bedrock) can\'t be dug.'],
       [scene(function (g) { g.drawImage(tex.blocks[TILE.GOLD].top, 0, 8); g.drawImage(tex.ores.gold, 18, 10, 12, 12); }), 'Find ores', 'Coal, iron, gold and diamond blocks give points and crafting stuff.'],
+      [scene(function (g) { g.drawImage(tex.blocks[TILE.EMBER].top, 0, 8); g.drawImage(tex.ores.ember, 18, 10, 12, 12); }), 'Ember Ore',
+        'The rarest block of all, hiding deep in the Lava Caves. It\'s tough — bring a Diamond Pickaxe. Trade ember for the Emberite Pickaxe, Emberite Armor and a glowing helmet.'],
       [scene(function (g) { g.drawImage(PCTex.cubeIcon(tex.blocks[TILE.PLANKS], 32), 0, 0); }), 'Build a wall', 'Tap the block button to drop a block behind you. Monsters bump into it! Dig walls to collect more blocks.'],
       [scene(function (g) { g.drawImage(tex.tnt[0], 4, 4, 24, 24); }), 'TNT', 'Drop it and run! It blasts walls and bonks monsters — but never hurts you.'],
       [scene(function (g) { g.drawImage(tex.food.apple, 2, 6, 14, 14); g.drawImage(tex.heart[1], 18, 10); }), 'Snacks', 'Food pops up under the monster cage. Eat it for points and a heart.'],

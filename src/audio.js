@@ -79,6 +79,7 @@ var PCAudio = (function () {
     craft: function () { tone(1200, 0.08, 'square', null, 0, 0.14); tone(1800, 0.14, 'triangle', null, 0.07, 0.25); noise(0.05, 4000, 'bandpass', 0.3); tone(2400, 0.2, 'sine', null, 0.16, 0.2); },
     unlock: function () { [659, 880, 1175, 1760].forEach(function (f, i) { tone(f, 0.18, 'triangle', null, i * 0.07, 0.3); }); },
     over: function () { [523, 440, 392, 330, 262].forEach(function (f, i) { tone(f, 0.26, 'triangle', null, i * 0.2, 0.35); }); },
+    shieldhit: function () { noise(0.18, 1600, 'bandpass', 0.5, 0, 1.5, 500); tone(220, 0.22, 'square', 140, 0, 0.3); tone(880, 0.12, 'triangle', 1320, 0.04, 0.22); },
     foodspawn: function () { tone(1568, 0.1, 'sine', null, 0, 0.2); tone(2093, 0.14, 'sine', null, 0.08, 0.2); }
   };
 

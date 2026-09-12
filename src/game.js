@@ -15,7 +15,7 @@
     hard:   { hearts: 3, mSpeed: 0.9, power: 6, release: 2, phases: [6, 20, 5, 22, 4, 1e9], elroy: true }
   };
   var BASE_SPEED = 5.6;              // player tiles / second
-  var PICK_SPEED = [1, 1.6, 2.5, 4]; // wood, stone, iron, diamond
+  var PICK_SPEED = [1, 1.6, 2.5, 4, 6]; // wood, stone, iron, diamond, emberite
   var FOOD_PTS = { apple: 100, carrot: 300, bread: 500, melon: 700, cookie: 1000, cake: 2000, goldapple: 5000 };
   var MONSTERS = [
     { kind: 'rumble', name: 'Rumble', corner: [W - 3, -4] },
@@ -32,7 +32,7 @@
     this.gems = Uint8Array.from(level.gems);
     this.difficulty = DIFF[opts.difficulty] ? opts.difficulty : 'normal';
     this.diff = DIFF[this.difficulty];
-    this.up = Object.assign({ pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0 }, opts.upgrades || {});
+    this.up = Object.assign({ pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, opts.upgrades || {});
     this.settings = Object.assign({ pushDig: true }, opts.settings || {});
     this.levelNum = opts.levelNum || level.levelNum || 1;
     this.lf = Math.min(Math.max(this.levelNum, 1) - 1, 12); // level factor for speed-ups
@@ -49,7 +49,7 @@
     this.placed = {};
     this.tnts = [];
     this.food = null; this.foodSpawned = 0;
-    this.orestaken = { coal: 0, iron: 0, gold: 0, diamond: 0 };
+    this.orestaken = { coal: 0, iron: 0, gold: 0, diamond: 0, ember: 0 };
     this.gemsTotal = Wd.countGems(this.gems);
     this.gemsLeft = this.gemsTotal;
     this.gemsEaten = 0;
@@ -60,6 +60,7 @@
     this.paused = false;
     this.computeEyesField();
     this.resetPositions();
+    this.shield = this.up.armor || 0;   // armour recharges once per level, not per life
   }
 
   var G = Game.prototype;
@@ -89,6 +90,7 @@
       var idx = p[1] * W + p[0];
       if (this.tiles[idx] === TILE.PLANKS) { this.tiles[idx] = TILE.FLOOR; delete this.placed[idx]; }
     }, this);
+    this.invuln = 0;
     this.powerT = 0; this.combo = 0;
     this.phase = 0; this.phaseT = this.diff.phases[0];
     this.tnts = [];
@@ -324,6 +326,7 @@
       var b = this.tnts[t]; b.t -= dt;
       if (b.t <= 0) { this.tnts.splice(t, 1); this.explode(b.x, b.y); }
     }
+    if (this.invuln > 0) this.invuln -= dt;
     if (this.food) { this.food.t -= dt; if (this.food.t <= 0) { this.food = null; this.emit('food-gone'); } }
 
     this.updatePlayer(dt);
@@ -618,6 +621,7 @@
       var dx = Math.abs(m.x - p.x); if (dx > W / 2) dx = W - dx;
       var dy = Math.abs(m.y - p.y);
       if (dx < 0.6 && dy < 0.6) {
+        if (!m.fright && this.invuln > 0) continue;
         if (m.fright) {
           this.combo++;
           var pts = 200 * Math.pow(2, Math.min(this.combo, 4) - 1);
@@ -625,6 +629,11 @@
           m.mode = 'eyes'; m.fright = false; m.fly = false;
           this.freeze = 0.4;
           this.emit('eat', { x: m.x, y: m.y, pts: pts, kind: m.kind });
+        } else if (this.shield > 0) {
+          this.shield--;
+          this.invuln = 2.2;
+          m.reverse = true;
+          this.emit('shield', { x: p.x, y: p.y, left: this.shield });
         } else {
           this.state = 'dying'; this.stateT = 1.8; p.mining = null; p.deadT = 0;
           this.emit('death', { x: p.x, y: p.y, by: m.kind });

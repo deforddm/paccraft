@@ -10,7 +10,7 @@
     FLOOR: 0, BORDER: 1, PEN: 2, DOOR: 3, PLANKS: 4,
     GRASS: 10, DIRT: 11, STONE: 12, COBBLE: 13, LOG: 14, LEAVES: 15, SAND: 16, SANDSTONE: 17,
     SNOW: 18, ICE: 19, MAGMA: 20, BASALT: 21, CRYSTAL: 22, CLAY: 23, MOSS: 24,
-    COAL: 30, IRON: 31, GOLD: 32, DIAMOND: 33
+    COAL: 30, IRON: 31, GOLD: 32, DIAMOND: 33, EMBER: 34
   };
 
   // hard = seconds to mine with the starting (wooden) pickaxe. Infinity = can't be mined.
@@ -39,6 +39,7 @@
   def(TILE.IRON, 'Iron Ore', 1.2, 'iron', 100);
   def(TILE.GOLD, 'Gold Ore', 1.3, 'gold', 200);
   def(TILE.DIAMOND, 'Diamond Ore', 1.6, 'diamond', 500);
+  def(TILE.EMBER, 'Ember Ore', 3.0, 'ember', 1500); // the rarest block: slow to dig without a good pickaxe
 
   function isMineable(t) { var b = BLOCKS[t]; return !!b && isFinite(b.hard); }
   function isWall(t) { return t !== TILE.FLOOR; }
@@ -55,11 +56,11 @@
     { id: 'snow', short: 'Snow', name: 'Snowy Peaks', walls: [[TILE.SNOW, 5], [TILE.ICE, 3], [TILE.STONE, 2]],
       ores: { coal: 0.03, iron: 0.045, gold: 0.02, diamond: 0.008 }, food: 'melon' },
     { id: 'caves', short: 'Caves', name: 'Dark Caves', walls: [[TILE.STONE, 6], [TILE.COBBLE, 3], [TILE.MOSS, 1]],
-      ores: { coal: 0.08, iron: 0.05, gold: 0.03, diamond: 0.015 }, food: 'cookie' },
+      ores: { coal: 0.08, iron: 0.05, gold: 0.03, diamond: 0.015, ember: 0.006 }, food: 'cookie' },
     { id: 'lava', short: 'Lava', name: 'Lava Caves', walls: [[TILE.MAGMA, 6], [TILE.BASALT, 4]],
-      ores: { coal: 0.04, gold: 0.05, diamond: 0.02 }, food: 'cake' },
+      ores: { coal: 0.04, gold: 0.05, diamond: 0.02, ember: 0.022 }, food: 'cake' },
     { id: 'crystal', short: 'Crystal', name: 'Crystal Caverns', walls: [[TILE.CRYSTAL, 5], [TILE.STONE, 3], [TILE.COBBLE, 1]],
-      ores: { iron: 0.03, gold: 0.045, diamond: 0.04 }, food: 'goldapple' }
+      ores: { iron: 0.03, gold: 0.045, diamond: 0.04, ember: 0.012 }, food: 'goldapple' }
   ];
   function biomeFor(levelNum) { return BIOMES[(levelNum - 1) % BIOMES.length]; }
   function biomeById(id) { for (var i = 0; i < BIOMES.length; i++) if (BIOMES[i].id === id) return BIOMES[i]; return BIOMES[0]; }
@@ -194,7 +195,8 @@
       for (var k = 0; k < biome.walls.length; k++) { acc += biome.walls[k][1]; if (v < acc) { t = biome.walls[k][0]; break; } }
       tiles[i] = t;
       var roll = r(), o = biome.ores, a = 0;
-      if (roll < (a += (o.diamond || 0) * oreBoost)) tiles[i] = TILE.DIAMOND;
+      if (roll < (a += (o.ember || 0) * oreBoost)) tiles[i] = TILE.EMBER;
+      else if (roll < (a += (o.diamond || 0) * oreBoost)) tiles[i] = TILE.DIAMOND;
       else if (roll < (a += (o.gold || 0) * oreBoost)) tiles[i] = TILE.GOLD;
       else if (roll < (a += (o.iron || 0) * oreBoost)) tiles[i] = TILE.IRON;
       else if (roll < (a += (o.coal || 0) * oreBoost)) tiles[i] = TILE.COAL;

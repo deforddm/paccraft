@@ -102,6 +102,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hearts { display: flex; gap: 2px; flex-wrap: wrap; max-width: 40%; }
 .hearts img { width: 22px; height: 20px; image-rendering: pixelated; }
 .hearts img.pop { animation: heartpop 0.4s; }
+.armor { display: flex; gap: 2px; }
+.armor img { width: 18px; height: 18px; image-rendering: pixelated; filter: drop-shadow(0 0 3px rgba(255, 138, 31, 0.8)); }
+.armor img.off { filter: grayscale(1) brightness(0.45); }
 @keyframes heartpop { 50% { transform: scale(1.5); } }
 .score { flex: 1; text-align: center; font-family: var(--head); font-size: clamp(18px, 6vw, 26px); text-shadow: 2px 2px 0 #000; }
 .lvl { font-family: var(--head); font-size: 14px; background: var(--panel); border: 2px solid var(--line); border-radius: 4px; padding: 4px 8px; white-space: nowrap; }
