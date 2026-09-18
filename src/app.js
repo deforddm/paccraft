@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '1.4.0';
+  var VERSION = '2.0.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -15,7 +15,7 @@
       up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, tnt: 1,
       best: 0, maxLevel: 1, difficulty: 'easy',
       settings: { sfx: true, music: true, haptics: true, dpad: true, lefty: false, pushDig: true },
-      levels: [], stats: { gems: 0, bonks: 0, mined: 0, games: 0 }, tips: 0
+      levels: [], stats: { gems: 0, bonks: 0, mined: 0, games: 0 }, tips: 0, hi: {}
     };
   }
   function load() {
@@ -93,26 +93,28 @@
   function img(src, cls) { return '<img src="' + src + '" alt=""' + (cls ? ' class="' + cls + '"' : '') + '>'; }
 
   // ================= screens =================
-  var current = 'title', history = [];
+  var current = 'hub', history = [];
   function show(id, noPush) {
     if (id === current) return;
     if (!noPush) history.push(current);
     $('screen-' + current).classList.remove('active');
     current = id;
     $('screen-' + id).classList.add('active');
-    $('app').classList.toggle('in-game', id === 'game');
-    if (id === 'title') { history = []; enterTitle(); }
+    $('app').classList.toggle('in-game', id === 'game' || id === 'cab');
+    if (id === 'hub') { history = []; enterHub(); }
+    if (id === 'title') enterTitle();
     if (id === 'play') renderPlay();
     if (id === 'craft') renderCraft();
     if (id === 'arcade') renderArcade();
     if (id === 'hero') renderHero();
     if (id === 'settings') renderSettings();
     if (id === 'help') renderHelp();
-    if (id !== 'game') { A.sirenOff(); if (id === 'title') A.startMusic('title'); }
+    if (id !== 'game' && id !== 'cab') { A.sirenOff(); if (id === 'title' || id === 'hub') A.startMusic('title'); }
+    if (id !== 'cab' && PCCab.isRunning()) PCCab.stop();
     requestAnimationFrame(layout);
   }
   function back() {
-    var prev = history.pop() || 'title';
+    var prev = history.pop() || 'hub';
     if (current === 'craft' && craftThen) { var f = craftThen; craftThen = null; f(); return; }
     if (current === 'arcade' && arcadeThen) { var fa = arcadeThen; arcadeThen = null; fa(); return; }
     show(prev, true);
@@ -202,12 +204,72 @@
     var hi = document.querySelector('#btn-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
   }
 
+  $('btn-title-hub').addEventListener('click', function () { A.play('click'); show('hub', true); });
   $('btn-play').addEventListener('click', function () { A.unlock(); A.play('click'); show('play'); });
   $('btn-craft').addEventListener('click', function () { A.play('click'); craftThen = null; show('craft'); });
   $('btn-hero').addEventListener('click', function () { A.play('click'); show('hero'); });
   $('btn-build').addEventListener('click', function () { A.play('click'); openBuilder(null); });
   $('btn-help').addEventListener('click', function () { A.play('click'); show('help'); });
   $('btn-settings').addEventListener('click', function () { A.play('click'); show('settings'); });
+
+  // ================= arcade hub =================
+  function drawSign() {
+    var c = $('hub-sign'), word = 'BLOCKCADE', cols = word.length * 6 - 1, B = 9, side = Math.round(B * 0.4);
+    c.width = cols * B + 8; c.height = 7 * B + side + 8;
+    var g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    var blocks = [tex.blocks[TILE.GRASS], tex.blocks[TILE.GOLD], tex.blocks[TILE.DIAMOND], tex.blocks[TILE.MAGMA], tex.blocks[TILE.CRYSTAL], tex.blocks[TILE.IRON], tex.blocks[TILE.EMBER], tex.blocks[TILE.SAND], tex.blocks[TILE.LEAVES]];
+    for (var row = 0; row < 7; row++) for (var i = 0; i < word.length; i++) {
+      var gl = PCTex.GLYPH[word[i]], b = blocks[i % blocks.length];
+      for (var cx = 0; cx < 5; cx++) {
+        if (gl[row * 5 + cx] !== '1') continue;
+        var x = 4 + (i * 6 + cx) * B, y = 4 + row * B, below = row < 6 && gl[(row + 1) * 5 + cx] === '1';
+        g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(x + 3, y + 4, B, B + side);
+        if (!below) g.drawImage(b.side, 0, 0, 16, 6, x, y + B, B, side);
+        g.drawImage(b.top, 0, 0, 16, 16, x, y, B, B);
+        g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x + B - 1, y, 1, B); g.fillRect(x, y + B - 1, B, 1);
+      }
+    }
+  }
+  var CABINETS = [
+    { id: 'paccraft', cls: 'pac', name: 'PacCraft', blurb: 'Gobble gems, dig tunnels, bonk cube monsters.', start: function () { show('title'); },
+      best: function () { return save.best; },
+      thumb: function (g, w, h) {
+        var gb = tex.blocks[TILE.GRASS], f = tex.floors.meadow[0];
+        for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(f, x, y, 16, 16);
+        [[0, 0], [16, 0], [32, 0], [48, 0], [0, 32], [48, 32]].forEach(function (p) { g.drawImage(gb.top, p[0], p[1], 16, 16); });
+        for (var gx = 8; gx < w; gx += 16) { g.fillStyle = '#5ef0a8'; g.fillRect(gx - 1, 22, 3, 3); }
+        g.drawImage(PCTex.hero(save.look).right[1], 14, 12, 16, 16);
+        g.drawImage(tex.mons.rumble[0], 40, 12, 16, 16); PCTex.drawEyes(g, 40, 12, 1, 1);
+        g.drawImage(tex.crystal, 4, 30, 9, 11);
+      } }
+  ];
+  function enterHub() {
+    $('hub-hello').textContent = 'Hi, ' + (save.name || 'Max') + '!';
+    var bank = '';
+    ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
+    $('hub-bank').innerHTML = bank;
+    var box = $('cabinets'); box.innerHTML = '';
+    var all = CABINETS.concat(PCCab.list().map(function (d) {
+      return { id: d.id, cls: d.id, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
+    }));
+    all.forEach(function (c) {
+      var card = document.createElement('button'); card.className = 'cab-card ' + c.cls;
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
+      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
+      try { c.thumb(g, 64, 48, tex); } catch (e) { }
+      card.appendChild(cv);
+      var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
+      var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
+      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = 'BEST ' + c.best(); card.appendChild(best);
+      card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
+      box.appendChild(card);
+    });
+    var hi = document.querySelector('#hub-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
+  }
+  $('hub-arcade').addEventListener('click', function () { A.unlock(); A.play('click'); arcadeThen = null; show('arcade'); });
+  $('hub-craft').addEventListener('click', function () { A.play('click'); craftThen = null; show('craft'); });
+  $('hub-hero').addEventListener('click', function () { A.play('click'); show('hero'); });
+  $('hub-settings').addEventListener('click', function () { A.play('click'); show('settings'); });
 
   // ================= play / level select =================
   var DIFF_DESC = {
@@ -439,7 +501,7 @@
     A.play('click');
     if (session.mode === 'adventure') startAdventure(session.levelNum); else startCustom(session.custom, session.from);
   });
-  var craftThen = null;
+  var craftThen = null, arcadeThen = null;
   $('btn-clear-craft').addEventListener('click', function () {
     A.play('click');
     var s = session, carry = s.game.carry();
@@ -452,7 +514,6 @@
     craftThen = function () { if (s.mode === 'adventure') startAdventure(s.levelNum); else startCustom(s.custom, s.from); };
     show('craft', true);
   });
-  var arcadeThen = null;
   $('btn-clear-arcade').addEventListener('click', function () {
     A.play('click');
     var s = session, carry = s.game.carry();
@@ -574,6 +635,8 @@
     if (current === 'game') {
       var st = $('stage'), r = st.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) renderer.resize(r.width - 6, r.height - 6);
+    } else if (current === 'cab') {
+      PCCab.resize();
     } else if (current === 'builder' && builder) {
       var b = $('bld-stage').getBoundingClientRect();
       if (b.width > 0) builder.resize(b.width - 6, b.height - 6);
@@ -1097,11 +1160,19 @@
   buildIcons();
   applySettings();
   drawLogo();
-  enterTitle();
+  drawSign();
+  PCCab.setApi({
+    save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img,
+    show: function (id) { show(id); }, back: function () { show('hub', true); },
+    addOre: function (k, n) { save.ores[k] = (save.ores[k] || 0) + n; persist(); },
+    isCab: function () { return current === 'cab'; }
+  });
+  PCCab.init();
+  enterHub();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { layout(); });
   requestAnimationFrame(frame);
   // start title music on first touch (browsers need a gesture)
-  document.addEventListener('pointerdown', function first() { A.unlock(); if (current === 'title') A.startMusic('title'); document.removeEventListener('pointerdown', first); });
+  document.addEventListener('pointerdown', function first() { A.unlock(); if (current === 'title' || current === 'hub') A.startMusic('title'); document.removeEventListener('pointerdown', first); });
 
   // ================= updates =================
   // A new version downloads quietly in the background. When it's ready we show a button;
@@ -1151,5 +1222,5 @@
       }).catch(function () { });
     });
   }
-  window.PacCraft = { updateReady: function () { return updateReady; }, save: function () { return save; }, session: function () { return session; }, show: show, startAdventure: startAdventure, renderer: renderer, VERSION: VERSION };
+  window.PacCraft = { cab: PCCab, updateReady: function () { return updateReady; }, save: function () { return save; }, session: function () { return session; }, show: show, startAdventure: startAdventure, renderer: renderer, VERSION: VERSION };
 })();

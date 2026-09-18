@@ -277,3 +277,40 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .paytable { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--muted); }
 .paytable img { width: 16px; height: 16px; image-rendering: pixelated; vertical-align: middle; }
 .paytable b { color: #fff; }
+
+/* ---------- arcade hub ---------- */
+.hub-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 520px; width: 100%; margin: 0 auto; position: relative; overflow-y: auto; padding-bottom: 12px; }
+.hub-sign { width: min(94vw, 470px); image-rendering: pixelated; margin-top: 44px; }
+.hub-top { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.hub-bank { display: flex; gap: 10px; flex-wrap: wrap; font-weight: 900; color: var(--muted); font-size: 14px; }
+.hub-bank span { display: inline-flex; align-items: center; gap: 4px; }
+.hub-bank img { width: 18px; height: 18px; image-rendering: pixelated; }
+.cabinets { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.cab-card { display: flex; flex-direction: column; border: 4px solid var(--line); border-radius: 8px; background: #2a2230; padding: 0; overflow: hidden; text-align: left; box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.5); transition: transform 0.08s; }
+.cab-card:active { transform: scale(0.97); }
+.cab-card canvas { width: 100%; aspect-ratio: 4 / 3; image-rendering: pixelated; display: block; border-bottom: 4px solid var(--line); }
+.cab-card .cab-marquee { font-family: var(--head); font-size: clamp(13px, 3.6vw, 17px); padding: 8px 10px 2px; text-shadow: 2px 2px 0 #000; color: #fff; }
+.cab-card .cab-blurb { font-size: 12px; color: var(--muted); padding: 0 10px; line-height: 1.3; min-height: 32px; }
+.cab-card .cab-best { font-family: var(--head); font-size: 12px; color: var(--gold); padding: 6px 10px 10px; text-shadow: 1px 1px 0 #000; }
+.cab-card.pac { border-color: #4fa132; }
+.cab-card.dash { border-color: #f2c230; }
+.cab-card.digger { border-color: #b86b4b; }
+.cab-card.breaker { border-color: #3fa7e0; }
+.hub-row { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+.hub-row .btn { min-height: 56px; font-size: 15px; padding: 6px 8px; gap: 6px; }
+.corner-left { right: auto; left: 0; font-family: var(--head); font-size: 20px; }
+/* cabinet screen */
+.cab-title { font-family: var(--head); font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34%; }
+.act-a, .act-b { width: clamp(70px, 20vw, 100px); height: clamp(70px, 20vw, 100px); font-family: var(--head); font-size: 15px; color: #fff; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5); }
+.act-a { background: linear-gradient(#63b843, #479a2c); }
+.act-b { background: linear-gradient(#3fa7e0, #2a7cb0); }
+.act-a.hot { background: linear-gradient(#f0b640, #d08a1c); }
+.act span { pointer-events: none; }
+.dpad.lr .dpad-arrow.up, .dpad.lr .dpad-arrow.down { display: none; }
+.screen.cab .stage { touch-action: none; }
+.screen.cab #cab-controls[hidden] { display: none; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .screen.cab.active { display: grid; grid-template-columns: minmax(140px, auto) 1fr minmax(140px, auto); }
+  .screen.cab .stage { min-width: 0; }
+  .screen.cab .dpad { height: min(60vh, 200px); }
+}
