@@ -160,6 +160,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes popin { from { transform: scale(0.85); opacity: 0; } }
 .card h2 { margin: 0 0 4px; font-family: var(--head); font-weight: 400; font-size: 28px; text-shadow: 3px 3px 0 #000; }
 .card h2.win { color: #7dff8a; } .card h2.lose { color: #ff7a6a; }
+.card .menu-row .btn { font-size: 15px; padding: 8px 8px; gap: 6px; }
 .card p { margin: 0 0 6px; color: var(--muted); line-height: 1.4; }
 .stats { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
 .stats .line { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.25); padding: 6px 10px; border-radius: 4px; }
@@ -240,3 +241,39 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .update-bar .upd-x { width: 32px; height: 32px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 16px; padding: 0; }
 .in-game .update-bar { display: none; }
 @media (prefers-reduced-motion: reduce) { .update-bar img { animation: none; } }
+
+/* ---------- Lucky Mine arcade ---------- */
+.arcade-scroll { gap: 10px; }
+.arcade-stake { padding: 10px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 12px 4px 8px; border: 3px solid var(--line); border-radius: 22px; background: #4a4450; color: #fff; font-family: var(--head); font-size: 14px; }
+.chip-btn img { width: 22px; height: 22px; image-rendering: pixelated; }
+.chip-btn.active { background: linear-gradient(#fbd54c, #e0b020); color: #3a2a00; text-shadow: none; }
+.chip-btn:disabled { filter: grayscale(0.8) brightness(0.6); }
+.booth { display: flex; flex-direction: column; gap: 10px; }
+.booth-hint { text-align: center; padding: 0 4px; }
+.haul-row { display: flex; gap: 8px; align-items: stretch; }
+.haul-row .btn { flex: none; min-height: 52px; padding: 6px 14px; font-size: 16px; }
+.haul { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 6px 10px; font-family: var(--head); font-size: 16px; }
+.haul span { display: inline-flex; align-items: center; gap: 4px; }
+.haul img { width: 24px; height: 24px; image-rendering: pixelated; }
+.haul .empty-haul { color: var(--muted); font-family: var(--body); font-weight: 700; font-size: 14px; }
+.boom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 330px; width: 100%; margin: 0 auto; }
+.bblock { aspect-ratio: 1; border: 3px solid var(--line); border-radius: 6px; background-size: cover; image-rendering: pixelated; padding: 0; position: relative; display: grid; place-items: center; box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.22), inset -3px -4px 0 rgba(0, 0, 0, 0.35); }
+.bblock img { width: 62%; height: 62%; image-rendering: pixelated; pointer-events: none; }
+.bblock.open { background-image: none !important; background: #3d3346; box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.3); animation: popin 0.25s; }
+.bblock.open .cnt { position: absolute; right: 4px; bottom: 2px; font-family: var(--head); font-size: 16px; color: #fff; text-shadow: 2px 2px 0 #000; }
+.bblock.boom { background: #6a1f1a; animation: boomshake 0.5s; }
+@keyframes boomshake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, -2px); } 80% { transform: translate(3px, 2px); } }
+.bblock.dim { filter: brightness(0.55); }
+.bblock:disabled { cursor: default; }
+.reels { display: flex; justify-content: center; gap: 10px; }
+.reel { width: 92px; height: 92px; border: 4px solid var(--line); border-radius: 8px; background: linear-gradient(#f4ecd8, #d8c9a8); display: grid; place-items: center; box-shadow: inset 0 6px 0 rgba(255, 255, 255, 0.5), inset 0 -8px 0 rgba(0, 0, 0, 0.18); overflow: hidden; }
+.reel img { width: 60px; height: 60px; image-rendering: pixelated; }
+.reel.spinning img { animation: reelspin 0.12s linear infinite; }
+@keyframes reelspin { 0% { transform: translateY(-30px); opacity: 0.4; } 50% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(30px); opacity: 0.4; } }
+.reel.hit { outline: 4px solid var(--gold); outline-offset: 2px; animation: pulse 0.6s 3; }
+.slot-msg { text-align: center; font-family: var(--head); font-size: 16px; min-height: 22px; color: var(--gold); text-shadow: 2px 2px 0 #000; }
+.paytable { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.paytable img { width: 16px; height: 16px; image-rendering: pixelated; vertical-align: middle; }
+.paytable b { color: #fff; }
