@@ -27,6 +27,15 @@ A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with 
 | Gem Magnet | 1 | Also collects gems next to you |
 | TNT | carry 5 | Consumable |
 
+### Lucky Mine (between levels)
+
+From the Level Clear or Game Over screen, **Lucky Mine** lets you bet ores (3 coal, 2 iron, 2 gold, 1 diamond or 1 ember) on two booths:
+
+- **Boom Blocks** — nine stone blocks hide six ore prizes and three Boom Blocks. Dig one at a time; ore goes in your bag, and you can **Take it!** whenever you like — but a Boom Block blows up the whole bag. Digging every safe block banks it all automatically.
+- **Ore Slots** — three reels. Any pair returns your stake, three of your stake ore pays 3×, three of the next ore up pays a bigger prize, and three Power Crystals is the 10× jackpot.
+
+Both booths pay back a little less than they take over time (roughly 85–90% with sensible play, less if you keep digging), so it's a gamble rather than a farm. Tables: `BOOM_PRIZES`, `SLOT_ODDS` and `SLOT_BIG` in `src/app.js`.
+
 ### Hero & Build mode
 
 - **Hero:** name, hat (miner helmet, cap, none — plus knight, crown, diamond and emberite helmets you unlock with ores), shirt, pants, hair, skin.

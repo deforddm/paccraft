@@ -106,7 +106,7 @@
         <h2 class="win">Level Clear!</h2>
         <div class="stats" id="clear-stats"></div>
         <button class="btn btn-green btn-lg" id="btn-next">Next Level ▶</button>
-        <button class="btn" id="btn-clear-craft"><span class="ico" data-ico="craft"></span>Crafting Table</button>
+        <div class="menu-row"><button class="btn" id="btn-clear-craft"><span class="ico" data-ico="craft"></span>Craft</button><button class="btn btn-gold" id="btn-clear-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button></div>
         <button class="btn btn-sm" id="btn-clear-menu">Menu</button>
       </div>
     </div>
@@ -115,7 +115,7 @@
         <h2 class="lose">Game Over</h2>
         <div class="stats" id="over-stats"></div>
         <button class="btn btn-green btn-lg" id="btn-retry">Try Again</button>
-        <button class="btn" id="btn-over-craft"><span class="ico" data-ico="craft"></span>Crafting Table</button>
+        <div class="menu-row"><button class="btn" id="btn-over-craft"><span class="ico" data-ico="craft"></span>Craft</button><button class="btn btn-gold" id="btn-over-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button></div>
         <button class="btn btn-sm" id="btn-over-menu">Menu</button>
       </div>
     </div>
@@ -127,6 +127,32 @@
     <div class="ore-bank" id="ore-bank"></div>
     <div class="scroll"><div class="recipes" id="recipes"></div></div>
     <div class="craft-foot" id="craft-foot" hidden><button class="btn btn-green btn-lg" id="btn-craft-continue">Continue ▶</button></div>
+  </section>
+
+  <!-- ================= LUCKY MINE (arcade) ================= -->
+  <section id="screen-arcade" class="screen">
+    <header class="bar"><button class="btn btn-sm back" data-back>◀</button><h2>Lucky Mine</h2><span></span></header>
+    <div class="ore-bank" id="arcade-bank"></div>
+    <div class="tabs" id="arcade-tabs"><button data-game="boom" class="active">Boom Blocks</button><button data-game="slots">Ore Slots</button></div>
+    <div class="scroll arcade-scroll">
+      <div class="panel arcade-stake">
+        <div class="label">Pay to play</div>
+        <div class="chips" id="arcade-chips"></div>
+      </div>
+      <div id="arcade-boom" class="booth">
+        <div class="hint booth-hint">Dig the blocks. Ore goes in your bag; a <b>Boom Block</b> blows the whole bag up! Stop digging and tap <b>Take it!</b> whenever you like.</div>
+        <div class="haul-row"><div class="haul" id="boom-haul"></div><button class="btn btn-green" id="boom-take" disabled>Take it!</button></div>
+        <div class="boom-grid" id="boom-grid"></div>
+      </div>
+      <div id="arcade-slots" class="booth" hidden>
+        <div class="hint booth-hint">Three matching ores wins big. Three <b>Power Crystals</b> is the jackpot!</div>
+        <div class="reels" id="reels"><div class="reel"><img alt=""></div><div class="reel"><img alt=""></div><div class="reel"><img alt=""></div></div>
+        <div class="slot-msg" id="slot-msg">Pick what to pay, then pull!</div>
+        <div class="menu-row"><button class="btn btn-gold btn-lg" id="slot-pull" disabled>Pull!</button></div>
+        <div class="paytable" id="paytable"></div>
+      </div>
+    </div>
+    <div class="craft-foot" id="arcade-foot" hidden><button class="btn btn-green btn-lg" id="btn-arcade-continue">Continue ▶</button></div>
   </section>
 
   <!-- ================= HERO ================= -->
