@@ -80,7 +80,13 @@ var PCAudio = (function () {
     unlock: function () { [659, 880, 1175, 1760].forEach(function (f, i) { tone(f, 0.18, 'triangle', null, i * 0.07, 0.3); }); },
     over: function () { [523, 440, 392, 330, 262].forEach(function (f, i) { tone(f, 0.26, 'triangle', null, i * 0.2, 0.35); }); },
     shieldhit: function () { noise(0.18, 1600, 'bandpass', 0.5, 0, 1.5, 500); tone(220, 0.22, 'square', 140, 0, 0.3); tone(880, 0.12, 'triangle', 1320, 0.04, 0.22); },
-    foodspawn: function () { tone(1568, 0.1, 'sine', null, 0, 0.2); tone(2093, 0.14, 'sine', null, 0.08, 0.2); }
+    foodspawn: function () { tone(1568, 0.1, 'sine', null, 0, 0.2); tone(2093, 0.14, 'sine', null, 0.08, 0.2); },
+    bark: function () { noise(0.07, 700, 'bandpass', 0.45, 0, 1.5); tone(330, 0.1, 'square', 170, 0, 0.22); noise(0.06, 900, 'bandpass', 0.4, 0.13, 1.5); tone(440, 0.09, 'square', 220, 0.13, 0.2); },
+    shoot: function () { tone(880, 0.08, 'square', 330, 0, 0.16); noise(0.05, 3000, 'highpass', 0.2); },
+    hop: function () { tone(520, 0.06, 'square', 780, 0, 0.16); },
+    splash: function () { noise(0.35, 1200, 'lowpass', 0.6, 0, 0.6, 300); tone(300, 0.2, 'sine', 90, 0, 0.3); },
+    line: function (d) { var n = (d && d.n) || 1; for (var i = 0; i < n; i++) tone(660 + i * 160, 0.12, 'triangle', null, i * 0.06, 0.3); noise(0.12, 2500, 'bandpass', 0.3); },
+    drop: function () { tone(180, 0.08, 'sine', 80, 0, 0.5); noise(0.06, 500, 'lowpass', 0.4); }
   };
 
   function play(name, data) {

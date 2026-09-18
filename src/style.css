@@ -296,6 +296,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cab-card.dash { border-color: #f2c230; }
 .cab-card.digger { border-color: #b86b4b; }
 .cab-card.breaker { border-color: #3fa7e0; }
+.cab-card.invaders { border-color: #9aa5ff; }
+.cab-card.crossing { border-color: #4fc96a; }
+.cab-card.snake { border-color: #5ef0a8; }
+.cab-card.stack { border-color: #e36bff; }
+.hello-row { display: flex; align-items: center; gap: 8px; }
+.hub-pet { width: 70px; height: 60px; image-rendering: pixelated; cursor: pointer; flex: none; margin-left: -6px; }
 .hub-row { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
 .hub-row .btn { min-height: 56px; font-size: 15px; padding: 6px 8px; gap: 6px; }
 .corner-left { right: auto; left: 0; font-family: var(--head); font-size: 20px; }

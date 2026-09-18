@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '2.0.0';
+  var VERSION = '2.1.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -256,7 +256,7 @@
       var card = document.createElement('button'); card.className = 'cab-card ' + c.cls;
       var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
       var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
-      try { c.thumb(g, 64, 48, tex); } catch (e) { }
+      try { c.thumb(g, 64, 48, tex, save.look); } catch (e) { }
       card.appendChild(cv);
       var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
       var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
@@ -265,7 +265,29 @@
       box.appendChild(card);
     });
     var hi = document.querySelector('#hub-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
+    hubPet = PCPet.make(save.look, function (n) { A.play(n); });
+    if (!hubPetRaf) { hubPetLast = performance.now(); hubPetRaf = requestAnimationFrame(hubPetLoop); }
   }
+  // the wolf sits by the greeting and barks when tapped; before adoption it's a shadow that leads to the Hero screen
+  var hubPet = null, hubPetRaf = 0, hubPetLast = 0, hubPetT = 0;
+  function hubPetLoop(now) {
+    if (current !== 'hub' || !hubPet) { hubPetRaf = 0; return; }
+    var dt = Math.min(0.05, (now - hubPetLast) / 1000); hubPetLast = now; hubPetT += dt;
+    var c = $('hub-pet'), g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, c.width, c.height);
+    if (hubPet.on) {
+      hubPet.sit(dt); if (hubPet.wagT <= 0 && Math.floor(hubPetT) % 7 === 0 && Math.floor(hubPetT * 3) % 3 === 0) hubPet.wagT = 0.6;
+      hubPet.draw(g, 24, 46, 22, 3);
+    } else {
+      g.globalAlpha = 0.3; g.drawImage(PCTex.wolf("#888").right[3], 13, 24, 22, 22); g.globalAlpha = 1;
+      PCTex.drawText(g, "?", 34, 14, 2, "#ffe680", "#000");
+    }
+    hubPetRaf = requestAnimationFrame(hubPetLoop);
+  }
+  $('hub-pet').addEventListener('click', function () {
+    if (!hubPet) return;
+    if (hubPet.on) { A.unlock(); hubPet.bark(Math.random() < 0.3 ? 'YIP!' : 'WOOF!'); hubPet.hop(); A.buzz(10); }
+    else { A.play('click'); toast('Adopt a wolf on the Hero screen!'); show('hero'); }
+  });
   $('hub-arcade').addEventListener('click', function () { A.unlock(); A.play('click'); arcadeThen = null; show('arcade'); });
   $('hub-craft').addEventListener('click', function () { A.play('click'); craftThen = null; show('craft'); });
   $('hub-hero').addEventListener('click', function () { A.play('click'); show('hero'); });

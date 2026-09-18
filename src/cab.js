@@ -109,7 +109,8 @@ var PCCab = (function () {
       over: function (info) { gameOver(info); },
       fx: function (name, data) { api.A.play(name, data); },
       buzz: function (p) { api.A.buzz(p); },
-      look: save.look
+      look: save.look,
+      pet: PCPet.make(save.look, function (n) { api.A.play(n); })
     };
     cur = { def: def, inst: def.create(ctx), running: true, paused: false, over: false, score: 0, ores: {} };
     ctx.addOre = function (k, n) { api.addOre(k, n); cur.ores[k] = (cur.ores[k] || 0) + n; refreshOres(); };
