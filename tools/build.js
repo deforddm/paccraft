@@ -11,7 +11,7 @@ const dataUri = f => 'data:image/png;base64,' + fs.readFileSync(path.join(root, 
 
 const html = read('index.html');
 const css = read('src/style.css').replace(/url\(\.\.\/fonts\/([^)]+)\)/g, (m, f) => 'url(data:font/woff2;base64,' + fs.readFileSync(path.join(root, 'fonts', f)).toString('base64') + ')');
-const js = ['src/world.js', 'src/game.js', 'src/textures.js', 'src/audio.js', 'src/render.js', 'src/builder.js', 'src/cab.js', 'src/games/breaker.js', 'src/games/digger.js', 'src/games/dash.js', 'src/app.js'].map(read).join('\n\n');
+const js = ['src/world.js', 'src/game.js', 'src/textures.js', 'src/audio.js', 'src/render.js', 'src/builder.js', 'src/pet.js', 'src/cab.js', 'src/games/breaker.js', 'src/games/digger.js', 'src/games/dash.js', 'src/games/invaders.js', 'src/games/crossing.js', 'src/games/snake.js', 'src/games/stack.js', 'src/app.js'].map(read).join('\n\n');
 const a = html.indexOf('<!-- BEGIN APP -->') + '<!-- BEGIN APP -->'.length, b = html.indexOf('<!-- END APP -->');
 const app = html.slice(a, b).trim();
 const icon = dataUri('icons/favicon-64.png'), apple = dataUri('icons/apple-touch-icon.png');
