@@ -1,7 +1,7 @@
 {
   "name": "Blockcade",
   "short_name": "Blockcade",
-  "description": "A blocky mash-up arcade: PacCraft, Cheetah Dash, Tunnel Trouble and Block Breaker, with shared ores, crafting and the Lucky Mine.",
+  "description": "A blocky mash-up arcade: PacCraft, Cheetah Dash, Tunnel Trouble, Block Breaker, Cube Invaders, Creek Crossing, Slime Snake and Block Stack, with shared ores, crafting, a wolf pal and the Lucky Mine.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",

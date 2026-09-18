@@ -8,8 +8,14 @@ A blocky mash-up arcade made for Max — four retro arcade games in one installa
 | **Cheetah Dash** | A speed platformer: Zip the cheetah tears over rolling block hills, loop-the-loops, springs and platforms, collecting emeralds and stomping cube monsters. Get hit and your emeralds scatter; get hit with none and you lose a life. Hold **SPIN** while standing and let go to spin-dash (breaks ore blocks, bonks monsters). Five zones that cycle harder: Meadow Hills, Sandy Dunes, Frosty Ridge, Magma Run, Crystal Rush. | ◀ ▶, JUMP, SPIN |
 | **Tunnel Trouble** | Dig Dug style: dig tunnels through four dirt layers, face a monster and **PUMP** it four times to pop it (deeper = more points, flame-breathers double), or dig under a boulder so it drops on them. Ore veins in the dirt go into your bag. Rounds add monsters. | joystick, PUMP |
 | **Block Breaker** | Breakout with blocks: drag to move the plank paddle, tap to launch the slime ball. Dirt breaks in one hit, stone two, basalt three, bedrock never; ore blocks drop their ore; TNT blows up its neighbours; crystals spawn an extra ball. Power-ups: Wide, Multi-ball, Slow-mo, Fire ball, Sticky, +Life. | drag / tap (or ◀ ▶ + Space) |
+| **Cube Invaders** | Space Invaders: rows of Mudge, Sly and Frost march down the night sky. Shoot arrows from behind plank shields, and catch the ore blocks that fall when you hit a carrier or Rumble the raider zooming across the top. | ◀ ▶ (or drag), SHOOT (or tap) |
+| **Creek Crossing** | Frogger: hop across five rails of runaway minecarts, ride logs, ice floes and diving lily pads over the creek, and fill the five burrows on the far bank. An ore bonus wanders between empty burrows. | joystick / swipe / tap |
+| **Slime Snake** | Snake: a growing slime gobbles emeralds, grabs the ore blocks that pop up for a few seconds, and must dodge the cobble and its own tail. Every 10 emeralds = a level and a coal. | joystick / swipe |
+| **Block Stack** | A falling-block puzzle built from real blocks. Slide, spin and drop the pieces; fill rows to clear them. Ore blocks hidden in the pieces go into your bag when their row clears; a four-row clear adds an iron. | joystick, SPIN, DROP (or drag / tap / swipe down) |
 
 Each cabinet keeps its own best score. Ores earned anywhere spend anywhere — at the Crafting Table (PacCraft upgrades), on hats and the wolf, and in the Lucky Mine.
+
+**The wolf** — once adopted on the Hero screen (5 gold + 3 iron), Max's wolf tags along in every cabinet: trotting behind the hero, running under the paddle, waiting on the creek bank, chasing the snake's tail, cheering beside the stack. Tap it on the arcade sign to make it bark. It never touches gameplay.
 
 ## PacCraft
 
@@ -72,6 +78,11 @@ src/cab.js            shared cabinet runtime for the canvas games: scaling, joys
 src/games/dash.js     Cheetah Dash (level generator, physics, loops, Zip's sprites)
 src/games/digger.js   Tunnel Trouble
 src/games/breaker.js  Block Breaker
+src/games/invaders.js Cube Invaders
+src/games/crossing.js Creek Crossing
+src/games/snake.js    Slime Snake
+src/games/stack.js    Block Stack
+src/pet.js            the wolf companion helper used by every cabinet
 src/world.js          blocks, biomes, seeded RNG, symmetric maze generator, custom levels
 src/game.js           rules + simulation: movement, monster AI, digging, blocks, TNT, power, scoring
 src/textures.js       all pixel art, drawn in code (blocks, hero, monsters, items, icons, bitmap font)

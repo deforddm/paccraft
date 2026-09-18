@@ -1,6 +1,6 @@
 {
   "name": "paccraft",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Blockcade — a blocky mash-up arcade for phones: PacCraft, Cheetah Dash, Tunnel Trouble, Block Breaker.",
   "private": true,
   "scripts": {
