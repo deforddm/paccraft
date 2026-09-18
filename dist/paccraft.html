@@ -172,6 +172,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @keyframes popin { from { transform: scale(0.85); opacity: 0; } }
 .card h2 { margin: 0 0 4px; font-family: var(--head); font-weight: 400; font-size: 28px; text-shadow: 3px 3px 0 #000; }
 .card h2.win { color: #7dff8a; } .card h2.lose { color: #ff7a6a; }
+.card .menu-row .btn { font-size: 15px; padding: 8px 8px; gap: 6px; }
 .card p { margin: 0 0 6px; color: var(--muted); line-height: 1.4; }
 .stats { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 16px; margin-bottom: 4px; }
 .stats .line { display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.25); padding: 6px 10px; border-radius: 4px; }
@@ -252,6 +253,42 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .update-bar .upd-x { width: 32px; height: 32px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 16px; padding: 0; }
 .in-game .update-bar { display: none; }
 @media (prefers-reduced-motion: reduce) { .update-bar img { animation: none; } }
+
+/* ---------- Lucky Mine arcade ---------- */
+.arcade-scroll { gap: 10px; }
+.arcade-stake { padding: 10px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 12px 4px 8px; border: 3px solid var(--line); border-radius: 22px; background: #4a4450; color: #fff; font-family: var(--head); font-size: 14px; }
+.chip-btn img { width: 22px; height: 22px; image-rendering: pixelated; }
+.chip-btn.active { background: linear-gradient(#fbd54c, #e0b020); color: #3a2a00; text-shadow: none; }
+.chip-btn:disabled { filter: grayscale(0.8) brightness(0.6); }
+.booth { display: flex; flex-direction: column; gap: 10px; }
+.booth-hint { text-align: center; padding: 0 4px; }
+.haul-row { display: flex; gap: 8px; align-items: stretch; }
+.haul-row .btn { flex: none; min-height: 52px; padding: 6px 14px; font-size: 16px; }
+.haul { flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 6px 10px; font-family: var(--head); font-size: 16px; }
+.haul span { display: inline-flex; align-items: center; gap: 4px; }
+.haul img { width: 24px; height: 24px; image-rendering: pixelated; }
+.haul .empty-haul { color: var(--muted); font-family: var(--body); font-weight: 700; font-size: 14px; }
+.boom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 330px; width: 100%; margin: 0 auto; }
+.bblock { aspect-ratio: 1; border: 3px solid var(--line); border-radius: 6px; background-size: cover; image-rendering: pixelated; padding: 0; position: relative; display: grid; place-items: center; box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.22), inset -3px -4px 0 rgba(0, 0, 0, 0.35); }
+.bblock img { width: 62%; height: 62%; image-rendering: pixelated; pointer-events: none; }
+.bblock.open { background-image: none !important; background: #3d3346; box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.3); animation: popin 0.25s; }
+.bblock.open .cnt { position: absolute; right: 4px; bottom: 2px; font-family: var(--head); font-size: 16px; color: #fff; text-shadow: 2px 2px 0 #000; }
+.bblock.boom { background: #6a1f1a; animation: boomshake 0.5s; }
+@keyframes boomshake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, -2px); } 80% { transform: translate(3px, 2px); } }
+.bblock.dim { filter: brightness(0.55); }
+.bblock:disabled { cursor: default; }
+.reels { display: flex; justify-content: center; gap: 10px; }
+.reel { width: 92px; height: 92px; border: 4px solid var(--line); border-radius: 8px; background: linear-gradient(#f4ecd8, #d8c9a8); display: grid; place-items: center; box-shadow: inset 0 6px 0 rgba(255, 255, 255, 0.5), inset 0 -8px 0 rgba(0, 0, 0, 0.18); overflow: hidden; }
+.reel img { width: 60px; height: 60px; image-rendering: pixelated; }
+.reel.spinning img { animation: reelspin 0.12s linear infinite; }
+@keyframes reelspin { 0% { transform: translateY(-30px); opacity: 0.4; } 50% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(30px); opacity: 0.4; } }
+.reel.hit { outline: 4px solid var(--gold); outline-offset: 2px; animation: pulse 0.6s 3; }
+.slot-msg { text-align: center; font-family: var(--head); font-size: 16px; min-height: 22px; color: var(--gold); text-shadow: 2px 2px 0 #000; }
+.paytable { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; background: var(--panel); border: 3px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.paytable img { width: 16px; height: 16px; image-rendering: pixelated; vertical-align: middle; }
+.paytable b { color: #fff; }
 
 </style>
 </head>
@@ -345,7 +382,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <h2 class="win">Level Clear!</h2>
         <div class="stats" id="clear-stats"></div>
         <button class="btn btn-green btn-lg" id="btn-next">Next Level ▶</button>
-        <button class="btn" id="btn-clear-craft"><span class="ico" data-ico="craft"></span>Crafting Table</button>
+        <div class="menu-row"><button class="btn" id="btn-clear-craft"><span class="ico" data-ico="craft"></span>Craft</button><button class="btn btn-gold" id="btn-clear-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button></div>
         <button class="btn btn-sm" id="btn-clear-menu">Menu</button>
       </div>
     </div>
@@ -354,7 +391,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
         <h2 class="lose">Game Over</h2>
         <div class="stats" id="over-stats"></div>
         <button class="btn btn-green btn-lg" id="btn-retry">Try Again</button>
-        <button class="btn" id="btn-over-craft"><span class="ico" data-ico="craft"></span>Crafting Table</button>
+        <div class="menu-row"><button class="btn" id="btn-over-craft"><span class="ico" data-ico="craft"></span>Craft</button><button class="btn btn-gold" id="btn-over-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button></div>
         <button class="btn btn-sm" id="btn-over-menu">Menu</button>
       </div>
     </div>
@@ -366,6 +403,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
     <div class="ore-bank" id="ore-bank"></div>
     <div class="scroll"><div class="recipes" id="recipes"></div></div>
     <div class="craft-foot" id="craft-foot" hidden><button class="btn btn-green btn-lg" id="btn-craft-continue">Continue ▶</button></div>
+  </section>
+
+  <!-- ================= LUCKY MINE (arcade) ================= -->
+  <section id="screen-arcade" class="screen">
+    <header class="bar"><button class="btn btn-sm back" data-back>◀</button><h2>Lucky Mine</h2><span></span></header>
+    <div class="ore-bank" id="arcade-bank"></div>
+    <div class="tabs" id="arcade-tabs"><button data-game="boom" class="active">Boom Blocks</button><button data-game="slots">Ore Slots</button></div>
+    <div class="scroll arcade-scroll">
+      <div class="panel arcade-stake">
+        <div class="label">Pay to play</div>
+        <div class="chips" id="arcade-chips"></div>
+      </div>
+      <div id="arcade-boom" class="booth">
+        <div class="hint booth-hint">Dig the blocks. Ore goes in your bag; a <b>Boom Block</b> blows the whole bag up! Stop digging and tap <b>Take it!</b> whenever you like.</div>
+        <div class="haul-row"><div class="haul" id="boom-haul"></div><button class="btn btn-green" id="boom-take" disabled>Take it!</button></div>
+        <div class="boom-grid" id="boom-grid"></div>
+      </div>
+      <div id="arcade-slots" class="booth" hidden>
+        <div class="hint booth-hint">Three matching ores wins big. Three <b>Power Crystals</b> is the jackpot!</div>
+        <div class="reels" id="reels"><div class="reel"><img alt=""></div><div class="reel"><img alt=""></div><div class="reel"><img alt=""></div></div>
+        <div class="slot-msg" id="slot-msg">Pick what to pay, then pull!</div>
+        <div class="menu-row"><button class="btn btn-gold btn-lg" id="slot-pull" disabled>Pull!</button></div>
+        <div class="paytable" id="paytable"></div>
+      </div>
+    </div>
+    <div class="craft-foot" id="arcade-foot" hidden><button class="btn btn-green btn-lg" id="btn-arcade-continue">Continue ▶</button></div>
   </section>
 
   <!-- ================= HERO ================= -->
@@ -2853,7 +2916,7 @@ var PCBuilder = (function () {
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '1.3.0';
+  var VERSION = '1.4.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -2917,6 +2980,7 @@ var PCBuilder = (function () {
     var tableCube = PCTex.cubeIcon({ top: craftTable, sideFull: tex.blocks[TILE.LOG].sideFull }, 48);
     ICON.play = PCTex.dataURL(play, 4); ICON.pause = PCTex.dataURL(pause, 4); ICON.gear = PCTex.dataURL(gear, 4); ICON.help = PCTex.dataURL(help, 4);
     ICON.craft = PCTex.dataURL(tableCube, 1);
+    ICON.arcade = PCTex.dataURL(tex.tnt[0], 4);
     ICON.hero = PCTex.dataURL(PCTex.hero(save.look).down[0], 4);
     ICON.build = PCTex.dataURL(PCTex.cubeIcon(tex.blocks[TILE.GRASS], 48), 1);
     ICON.ore = {}; ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { ICON.ore[k] = PCTex.dataURL(tex.ores[k], 4); });
@@ -2955,6 +3019,7 @@ var PCBuilder = (function () {
     if (id === 'title') { history = []; enterTitle(); }
     if (id === 'play') renderPlay();
     if (id === 'craft') renderCraft();
+    if (id === 'arcade') renderArcade();
     if (id === 'hero') renderHero();
     if (id === 'settings') renderSettings();
     if (id === 'help') renderHelp();
@@ -2964,6 +3029,7 @@ var PCBuilder = (function () {
   function back() {
     var prev = history.pop() || 'title';
     if (current === 'craft' && craftThen) { var f = craftThen; craftThen = null; f(); return; }
+    if (current === 'arcade' && arcadeThen) { var fa = arcadeThen; arcadeThen = null; fa(); return; }
     show(prev, true);
   }
   document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', function () { A.play('click'); back(); }); });
@@ -3301,6 +3367,19 @@ var PCBuilder = (function () {
     craftThen = function () { if (s.mode === 'adventure') startAdventure(s.levelNum); else startCustom(s.custom, s.from); };
     show('craft', true);
   });
+  var arcadeThen = null;
+  $('btn-clear-arcade').addEventListener('click', function () {
+    A.play('click');
+    var s = session, carry = s.game.carry();
+    arcadeThen = function () { if (s.mode === 'adventure') startAdventure(s.levelNum + 1, carry); else startCustom(s.custom, s.from); };
+    show('arcade', true);
+  });
+  $('btn-over-arcade').addEventListener('click', function () {
+    A.play('click');
+    var s = session;
+    arcadeThen = function () { if (s.mode === 'adventure') startAdventure(s.levelNum); else startCustom(s.custom, s.from); };
+    show('arcade', true);
+  });
   $('btn-clear-menu').addEventListener('click', function () { A.play('click'); quitSession(); });
   $('btn-over-menu').addEventListener('click', function () { A.play('click'); quitSession(); });
 
@@ -3493,6 +3572,223 @@ var PCBuilder = (function () {
     });
   }
   $('btn-craft-continue').addEventListener('click', function () { A.play('click'); var f = craftThen; craftThen = null; if (f) f(); });
+
+  // ================= Lucky Mine (between-level arcade) =================
+  // Two booths, both paid for with ores. Payouts are tuned to return a bit less than
+  // they take on average (~85-95%), with big swings, so it's a gamble rather than a farm.
+  var STAKES = [
+    { id: 'coal', cost: { coal: 3 } }, { id: 'iron', cost: { iron: 2 } }, { id: 'gold', cost: { gold: 2 } },
+    { id: 'diamond', cost: { diamond: 1 } }, { id: 'ember', cost: { ember: 1 } }
+  ];
+  // Boom Blocks prizes per stake: [weight, {ore: n}]
+  var BOOM_PRIZES = {
+    coal:    [[25, { coal: 2 }], [30, { coal: 3 }], [22, { iron: 1 }], [13, { coal: 5 }], [10, { iron: 2 }]],
+    iron:    [[28, { iron: 1 }], [30, { iron: 2 }], [24, { gold: 1 }], [10, { iron: 3 }], [8, { gold: 2 }]],
+    gold:    [[32, { gold: 1 }], [30, { gold: 2 }], [24, { diamond: 1 }], [10, { gold: 3 }], [4, { diamond: 2 }]],
+    diamond: [[32, { gold: 2 }], [46, { diamond: 1 }], [12, { diamond: 2 }], [10, { ember: 1 }]],
+    ember:   [[42, { ember: 1 }], [30, { diamond: 2 }], [16, { diamond: 3 }], [12, { ember: 2 }]]
+  };
+  var BOOM_BOMBS = 3;
+  // Ore Slots outcomes: [weight, kind]; payouts per stake
+  var SLOT_ODDS = [[62, 'miss'], [22, 'pair'], [10, 'triple'], [4, 'big'], [2, 'jackpot']];
+  var SLOT_BIG = { coal: { iron: 3 }, iron: { gold: 2 }, gold: { diamond: 2 }, diamond: { ember: 1, diamond: 1 }, ember: { ember: 3 } };
+  var NEXT_ORE = { coal: 'iron', iron: 'gold', gold: 'diamond', diamond: 'ember', ember: 'ember' };
+  var arcade = { game: 'boom', stake: null, boom: null, spinning: false };
+
+  function pickWeighted(list) {
+    var total = 0, i; for (i = 0; i < list.length; i++) total += list[i][0];
+    var r = Math.random() * total;
+    for (i = 0; i < list.length; i++) { r -= list[i][0]; if (r < 0) return list[i][1]; }
+    return list[list.length - 1][1];
+  }
+  function canPay(cost) { return Object.keys(cost).every(function (k) { return save.ores[k] >= cost[k]; }); }
+  function renderBank() {
+    var bank = '';
+    ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
+    $('arcade-bank').innerHTML = bank;
+  }
+  function pay(cost) { Object.keys(cost).forEach(function (k) { save.ores[k] -= cost[k]; }); save.stats.arcadeSpent = (save.stats.arcadeSpent || 0) + 1; persist(); renderBank(); }
+  function award(prize) { Object.keys(prize).forEach(function (k) { save.ores[k] += prize[k]; }); persist(true); renderBank(); }
+  function prizeHTML(prize) { return Object.keys(prize).map(function (k) { return '<span>' + img(ICON.ore[k]) + '×' + prize[k] + '</span>'; }).join(' '); }
+  function mergePrize(into, prize) { Object.keys(prize).forEach(function (k) { into[k] = (into[k] || 0) + prize[k]; }); }
+  function stakeLabel(st) { var k = Object.keys(st.cost)[0]; return st.cost[k] + ' ' + k; }
+
+  function renderArcade() {
+    renderBank();
+    $('arcade-foot').hidden = !arcadeThen;
+    renderChips();
+    $('arcade-boom').hidden = arcade.game !== 'boom';
+    $('arcade-slots').hidden = arcade.game !== 'slots';
+    document.querySelectorAll('#arcade-tabs button').forEach(function (b) { b.classList.toggle('active', b.dataset.game === arcade.game); });
+    if (arcade.game === 'boom') renderBoom(); else renderSlots();
+  }
+  function renderChips() {
+    var box = $('arcade-chips'); box.innerHTML = '';
+    var busy = (arcade.boom && !arcade.boom.done) || arcade.spinning;
+    STAKES.forEach(function (st) {
+      var b = document.createElement('button'); b.className = 'chip-btn' + (arcade.stake === st.id ? ' active' : '');
+      var k = Object.keys(st.cost)[0];
+      b.innerHTML = img(ICON.ore[k]) + st.cost[k] + ' ' + k;
+      b.disabled = busy || !canPay(st.cost);
+      b.addEventListener('click', function () {
+        A.play('click'); arcade.stake = st.id; renderChips();
+        if (arcade.game === 'boom') renderBoom(); else renderSlots();
+      });
+      box.appendChild(b);
+    });
+    if (arcade.stake && !canPay(STAKES.filter(function (s) { return s.id === arcade.stake; })[0].cost)) arcade.stake = null;
+  }
+  document.querySelectorAll('#arcade-tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if ((arcade.boom && !arcade.boom.done) || arcade.spinning) { A.play('nope'); toast('Finish this round first!'); return; }
+      A.play('click'); arcade.game = b.dataset.game; renderArcade();
+    });
+  });
+
+  // ---- Boom Blocks: press your luck ----
+  function newBoomRound() {
+    var st = STAKES.filter(function (s) { return s.id === arcade.stake; })[0];
+    var cells = [];
+    for (var i = 0; i < 9; i++) cells.push(i < BOOM_BOMBS ? null : pickWeighted(BOOM_PRIZES[st.id]));
+    Wd.shuffle(cells, Math.random);
+    arcade.boom = { stake: st, cells: cells, open: [], haul: {}, done: false, dug: 0 };
+  }
+  function renderBoom() {
+    var b = arcade.boom, grid = $('boom-grid'), take = $('boom-take');
+    grid.innerHTML = '';
+    var haulEl = $('boom-haul');
+    if (!b || b.done) {
+      haulEl.innerHTML = b && b.done ? haulEl.innerHTML : '<span class="empty-haul">' + (arcade.stake ? 'Tap a block to start digging (' + stakeLabel(STAKES.filter(function (s) { return s.id === arcade.stake; })[0]) + ')' : 'Pick what to pay first') + '</span>';
+      for (var i = 0; i < 9; i++) {
+        var c = document.createElement('button'); c.className = 'bblock' + (b && b.done ? (b.open.indexOf(i) >= 0 ? ' open' : ' dim') : '');
+        c.style.backgroundImage = 'url(' + ICON.blockTop[TILE.STONE] + ')';
+        if (b && b.done) { c.disabled = true; fillBlock(c, b.cells[i], b.open.indexOf(i) >= 0 && b.cells[i] === null); }
+        else (function (idx) { c.addEventListener('click', function () { startBoomDig(idx); }); })(i);
+        grid.appendChild(c);
+      }
+      take.disabled = true; take.textContent = b && b.done ? 'Play again' : 'Take it!';
+      if (b && b.done) { take.disabled = false; take.onclick = function () { A.play('click'); arcade.boom = null; renderArcade(); }; }
+      return;
+    }
+    var keys = Object.keys(b.haul);
+    haulEl.innerHTML = keys.length ? '<span class="empty-haul">Bag:</span>' + prizeHTML(b.haul) : '<span class="empty-haul">Bag is empty — dig!</span>';
+    for (var j = 0; j < 9; j++) {
+      var cell = document.createElement('button'); cell.className = 'bblock';
+      cell.style.backgroundImage = 'url(' + ICON.blockTop[TILE.STONE] + ')';
+      if (b.open.indexOf(j) >= 0) { cell.classList.add('open'); cell.disabled = true; fillBlock(cell, b.cells[j], false); }
+      else (function (idx) { cell.addEventListener('click', function () { digBoom(idx); }); })(j);
+      grid.appendChild(cell);
+    }
+    take.disabled = !keys.length; take.textContent = 'Take it!';
+    take.onclick = function () {
+      if (!Object.keys(b.haul).length) return;
+      award(b.haul); b.done = true; A.play('craft'); A.buzz(20);
+      save.stats.arcadeWins = (save.stats.arcadeWins || 0) + 1;
+      toast('Banked ' + Object.keys(b.haul).map(function (k) { return b.haul[k] + ' ' + k; }).join(', ') + '!');
+      renderArcade();
+    };
+  }
+  function fillBlock(el, content, exploded) {
+    if (content === null) { el.innerHTML = img(ICON.tnt); if (exploded) el.classList.add('boom'); return; }
+    var k = Object.keys(content)[0];
+    el.innerHTML = img(ICON.ore[k]) + '<span class="cnt">×' + content[k] + '</span>';
+  }
+  function startBoomDig(idx) {
+    if (!arcade.stake) { A.play('nope'); toast('Pick what to pay first!'); return; }
+    var st = STAKES.filter(function (s) { return s.id === arcade.stake; })[0];
+    if (!canPay(st.cost)) { A.play('nope'); toast('Not enough ' + Object.keys(st.cost)[0] + '!'); return; }
+    pay(st.cost); newBoomRound(); renderChips();
+    digBoom(idx);
+  }
+  function digBoom(idx) {
+    var b = arcade.boom; if (!b || b.done || b.open.indexOf(idx) >= 0) return;
+    b.open.push(idx); b.dug++;
+    var content = b.cells[idx];
+    if (content === null) {
+      b.done = true; b.haul = {};
+      A.play('boom'); A.buzz([60, 40, 80]);
+      renderArcade();
+      $('boom-haul').innerHTML = '<span class="empty-haul" style="color:#ff7a6a">BOOM! The bag blew up. Better luck next time!</span>';
+      return;
+    }
+    mergePrize(b.haul, content);
+    A.play('mined', { tile: TILE.STONE, drop: Object.keys(content)[0] }); A.buzz(15);
+    if (b.dug === 9 - BOOM_BOMBS) { // cleared every safe block: auto-bank
+      award(b.haul); b.done = true; A.play('unlock');
+      toast('You found every ore! Banked it all.');
+      renderArcade(); return;
+    }
+    renderBoom();
+  }
+
+  // ---- Ore Slots ----
+  var SLOT_SYMBOLS = ['coal', 'iron', 'gold', 'diamond', 'ember', 'crystal'];
+  function symImg(sym) { return sym === 'crystal' ? ICON.crystal : ICON.ore[sym]; }
+  function renderSlots() {
+    var st = arcade.stake ? STAKES.filter(function (s) { return s.id === arcade.stake; })[0] : null;
+    $('slot-pull').disabled = !st || arcade.spinning;
+    var reels = document.querySelectorAll('#reels .reel img');
+    if (!arcade.spinning) reels.forEach(function (im, i) { if (!im.src) im.src = symImg(SLOT_SYMBOLS[(i * 2) % 6]); });
+    var pt = $('paytable');
+    if (!st) { pt.innerHTML = '<span>Pick what to pay to see the prizes.</span><span></span>'; $('slot-msg').textContent = 'Pick what to pay, then pull!'; return; }
+    var k = st.id, n = st.cost[k];
+    var big = SLOT_BIG[k], bigTxt = Object.keys(big).map(function (o) { return img(ICON.ore[o]) + '×' + big[o]; }).join(' + ');
+    pt.innerHTML =
+      '<span>' + img(symImg(k)) + img(symImg(k)) + ' any 2 match</span><b>' + img(ICON.ore[k]) + '×' + n + ' back</b>' +
+      '<span>' + img(symImg(k)) + img(symImg(k)) + img(symImg(k)) + ' three ' + k + '</span><b>' + img(ICON.ore[k]) + '×' + (n * 3) + '</b>' +
+      '<span>' + img(symImg(NEXT_ORE[k])) + img(symImg(NEXT_ORE[k])) + img(symImg(NEXT_ORE[k])) + ' three ' + NEXT_ORE[k] + '</span><b>' + bigTxt + '</b>' +
+      '<span>' + img(ICON.crystal) + img(ICON.crystal) + img(ICON.crystal) + ' JACKPOT</span><b>' + img(ICON.ore[k]) + '×' + (n * 10) + '</b>';
+    if (!arcade.spinning) $('slot-msg').textContent = 'Pull for ' + stakeLabel(st) + '!';
+  }
+  $('slot-pull').addEventListener('click', function () {
+    if (arcade.spinning || !arcade.stake) return;
+    var st = STAKES.filter(function (s) { return s.id === arcade.stake; })[0];
+    if (!canPay(st.cost)) { A.play('nope'); toast('Not enough ' + Object.keys(st.cost)[0] + '!'); renderChips(); return; }
+    pay(st.cost); arcade.spinning = true; renderChips(); $('slot-pull').disabled = true;
+    var k = st.id, n = st.cost[k], outcome = pickWeighted(SLOT_ODDS), final;
+    var others = SLOT_SYMBOLS.filter(function (x) { return x !== k && x !== 'crystal'; });
+    function rnd(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    if (outcome === 'jackpot') final = ['crystal', 'crystal', 'crystal'];
+    else if (outcome === 'big') { var nk = NEXT_ORE[k]; final = [nk, nk, nk]; }
+    else if (outcome === 'triple') final = [k, k, k];
+    else if (outcome === 'pair') { var a = rnd(SLOT_SYMBOLS.filter(function (x) { return x !== 'crystal'; })), o = rnd(SLOT_SYMBOLS.filter(function (x) { return x !== a; })); final = Wd.shuffle([a, a, o], Math.random); }
+    else { // miss: three different, never three of a kind
+      var pool = SLOT_SYMBOLS.slice(); Wd.shuffle(pool, Math.random); final = pool.slice(0, 3);
+    }
+    var reels = document.querySelectorAll('#reels .reel'), imgs = document.querySelectorAll('#reels .reel img');
+    reels.forEach(function (r) { r.classList.add('spinning'); r.classList.remove('hit'); });
+    $('slot-msg').textContent = 'Spinning…';
+    var t0 = performance.now(), stops = [900, 1500, 2100], stopped = 0;
+    A.play('tnt');
+    var iv = setInterval(function () {
+      var el = performance.now() - t0;
+      imgs.forEach(function (im, i) {
+        if (el < stops[i]) im.src = symImg(rnd(SLOT_SYMBOLS));
+        else if (!reels[i].classList.contains('stopped')) { reels[i].classList.remove('spinning'); reels[i].classList.add('stopped'); im.src = symImg(final[i]); A.play('place'); stopped++; }
+      });
+      if (stopped === 3) {
+        clearInterval(iv);
+        reels.forEach(function (r) { r.classList.remove('stopped'); });
+        arcade.spinning = false;
+        var prize = null, msg = 'No match. Try again?';
+        if (outcome === 'pair') { prize = {}; prize[k] = n; msg = 'A pair — you get your ' + k + ' back!'; }
+        else if (outcome === 'triple') { prize = {}; prize[k] = n * 3; msg = 'THREE ' + k.toUpperCase() + '! ×3!'; }
+        else if (outcome === 'big') { prize = SLOT_BIG[k]; msg = 'THREE ' + NEXT_ORE[k].toUpperCase() + '! Big win!'; }
+        else if (outcome === 'jackpot') { prize = {}; prize[k] = n * 10; msg = 'JACKPOT!!! ×10!'; }
+        if (prize) {
+          award(prize); reels.forEach(function (r) { r.classList.add('hit'); });
+          A.play(outcome === 'jackpot' ? 'clear' : (outcome === 'miss' ? 'nope' : 'unlock')); A.buzz(outcome === 'jackpot' ? [80, 50, 80, 50, 120] : 25);
+          save.stats.arcadeWins = (save.stats.arcadeWins || 0) + 1;
+        } else A.play('nope');
+        renderArcade();
+        $('slot-msg').innerHTML = msg + (prize ? ' ' + prizeHTML(prize) : '');
+      }
+    }, 70);
+  });
+  $('btn-arcade-continue').addEventListener('click', function () {
+    if ((arcade.boom && !arcade.boom.done) || arcade.spinning) { A.play('nope'); toast('Finish this round first!'); return; }
+    A.play('click'); var f = arcadeThen; arcadeThen = null; if (f) f();
+  });
 
   // ================= hero =================
   var LOOKS = {
@@ -3698,6 +3994,7 @@ var PCBuilder = (function () {
       [scene(function (g) { g.drawImage(tex.tnt[0], 4, 4, 24, 24); }), 'TNT', 'Drop it and run! It blasts walls and bonks monsters — but never hurts you.'],
       [scene(function (g) { g.drawImage(tex.food.apple, 2, 6, 14, 14); g.drawImage(tex.heart[1], 18, 10); }), 'Snacks', 'Food pops up under the monster cage. Eat it for points and a heart.'],
       [scene(function (g) { var ic = new Image(); ic.src = ICON.craft; g.drawImage(PCTex.cubeIcon(tex.blocks[TILE.PLANKS], 32), 0, 0); }), 'Crafting Table', 'Spend your ores on better pickaxes, speedy boots, extra hearts, TNT and more.'],
+      [scene(function (g) { g.drawImage(tex.blocks[TILE.STONE].top, 0, 0, 16, 16, 0, 8, 16, 16); g.drawImage(tex.tnt[0], 16, 6, 16, 16); }), 'Lucky Mine', 'Between levels, bet some ores on Boom Blocks or Ore Slots. You might strike it rich… or go BOOM. Feeling lucky?'],
       [scene(function (g) { g.drawImage(PCTex.cubeIcon(tex.blocks[TILE.GRASS], 32), 0, 0); }), 'Build your own', 'Make your own maze in Build mode, then play it and show your friends!']
     ];
     items.forEach(function (it) {
