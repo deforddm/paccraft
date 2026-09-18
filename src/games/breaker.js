@@ -73,7 +73,7 @@ PCCab.register((function () {
       S.score += pts; ctx.score(S.score);
       var col = b.kind === 'tnt' ? '#ff6a3d' : (tex.blocks[texOf[b.kind]] || {}).avg || '#aaa';
       burst(b.x + BW / 2, b.y + BH / 2, col, 8);
-      if (k.ore) { ctx.addOre(k.ore, 1); pop(b.x + BW / 2, b.y, '+1 ' + k.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: texOf[b.kind], drop: k.ore }); }
+      if (k.ore) { ctx.addOre(k.ore, 1); ctx.pet.bark(); pop(b.x + BW / 2, b.y, '+1 ' + k.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: texOf[b.kind], drop: k.ore }); }
       else if (b.kind === 'tnt') {
         ctx.fx('boom'); ctx.buzz([40, 30, 60]); S.shake = 0.3;
         S.blocks.slice().forEach(function (o) { if (Math.abs(o.col - b.col) <= 1 && Math.abs(o.row - b.row) <= 1 && o.kind !== 'bedrock') killBlock(o, false); });
@@ -121,6 +121,7 @@ PCCab.register((function () {
       if (S.targetX != null) { pd.x += (S.targetX - pd.x) * Math.min(1, dt * 22); }
       pd.w = pd.wideT > 0 ? 84 : 56;
       pd.x = Math.max(pd.w / 2 + 2, Math.min(W - pd.w / 2 - 2, pd.x));
+      ctx.pet.follow(pd.x, H - 6, dt, { dist: 40, lockY: H - 6, snap: 500, speed: 260 });
       if (pd.wideT > 0) pd.wideT -= dt; if (pd.stickyT > 0) pd.stickyT -= dt; if (S.fireT > 0) S.fireT -= dt; if (S.slowT > 0) S.slowT -= dt;
       var maxSp = S.speed * (S.slowT > 0 ? 0.65 : 1) + Math.min(80, S.time * 1.2);
       S.balls.slice().forEach(function (b) {
@@ -175,7 +176,7 @@ PCCab.register((function () {
       // level clear
       if (!S.blocks.some(function (b) { return b.kind !== 'bedrock'; })) {
         S.score += 100 * S.level; ctx.score(S.score);
-        ctx.addOre('coal', 1 + Math.floor(S.level / 3)); ctx.fx('clear'); ctx.buzz(30);
+        ctx.addOre('coal', 1 + Math.floor(S.level / 3)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
         S.level++; newLevel(); S.msg = { text: 'LEVEL ' + S.level, t: 1.6 };
       }
     }
@@ -217,6 +218,7 @@ PCCab.register((function () {
       g.drawImage(tex.blocks[T.PLANKS].top, 0, 0, 16, 16, px, py, pd.w, 10);
       if (pd.stickyT > 0) { g.fillStyle = 'rgba(227,107,255,0.6)'; g.fillRect(px, py - 2, pd.w, 3); }
       g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(px, py, pd.w, 1); g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(px, py + 9, pd.w, 1);
+      ctx.pet.draw(g, ctx.pet.x, H - 6, 20);
       // balls
       S.balls.forEach(function (b) {
         var fire = S.fireT > 0;

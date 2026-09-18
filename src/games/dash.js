@@ -137,6 +137,7 @@ PCCab.register((function () {
     function spawn() {
       S.p = { x: S.check.x, y: S.check.y - 8, vx: 0, vy: 0, ground: true, face: 1, spin: false, charge: 0, hurt: 0, dead: 0, anim: 0, loop: null, jumpHeld: false, count: S.p ? S.p.count : 0 };
       S.p.count = 0;
+      ctx.pet.reset(S.p.x - 20, S.p.y, 3);
       S.cam = { x: Math.max(0, S.p.x - 100), y: Math.max(0, S.p.y - 130) };
       S.safeT = 1.5;
     }
@@ -164,6 +165,8 @@ PCCab.register((function () {
     function update(dt) {
       S.time += dt; S.zoneT += dt;
       if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.p.dead <= 0) { ctx.pet.follow(S.p.x, S.p.y, dt, { dist: 26, snap: 220, speed: 320 }); var gy = groundAt(ctx.pet.x); if (gy !== null) ctx.pet.y += (gy - 8 - ctx.pet.y) * Math.min(1, dt * 14); }   // the wolf runs the ground under Zip's path
+      else ctx.pet.sit(dt);
       if (S.hintT > 0) { S.hintT -= dt; if (S.hintT <= 0) S.msg = { text: 'HOLD SPIN - LET GO!', sub: 'JUMP ON MONSTERS', t: 3 }; }
       if (S.safeT > 0) S.safeT -= dt;
       var p = S.p, held = ctx.held;
@@ -258,11 +261,11 @@ PCCab.register((function () {
         }
       });
       // ----- checkpoints & goal -----
-      S.L.checks.forEach(function (c) { if (!c.hit && p.x > c.x) { c.hit = true; S.check = { x: c.x, y: c.y }; pop(c.x, c.y - 40, 'CHECKPOINT', '#7dff8a'); ctx.fx('line'); } });
+      S.L.checks.forEach(function (c) { if (!c.hit && p.x > c.x) { c.hit = true; S.check = { x: c.x, y: c.y }; pop(c.x, c.y - 40, 'CHECKPOINT', '#7dff8a'); ctx.fx('line'); ctx.pet.bark(); } });
       if (p.x > S.L.goalX && !S.done) {
         S.done = true; S.doneT = 2.6; var bonus = 1000 + Math.max(0, 60 - Math.floor(S.zoneT)) * 20 + p.count * 5;
         addScore(bonus); S.total += p.count; ctx.addOre('coal', 1 + Math.floor(S.zoneNum / 2)); ctx.fx('clear'); ctx.buzz(30);
-        S.msg = { text: 'ZONE CLEAR!', sub: 'BONUS ' + bonus, t: 2.6 };
+        S.msg = { text: 'ZONE CLEAR!', sub: 'BONUS ' + bonus, t: 2.6 }; ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
       }
       collectStuff(p);
       // lost emeralds physics
@@ -335,6 +338,8 @@ PCCab.register((function () {
       S.lost.forEach(function (e) { if (Math.floor(e.t * 10) % 2 === 0 || e.t < 2) drawEmerald(g, e.x, e.y); });
       // enemies
       S.enemies.forEach(function (en) { if (en.dead || en.x < cam.x - 20 || en.x > cam.x + VW + 20) return; var fr = Math.floor(en.anim) % 2; g.drawImage(tex.mons[en.kind][fr], Math.round(en.x - 8), Math.round(en.y - 8), 16, 16); PCTex.drawEyes(g, Math.round(en.x - 8), Math.round(en.y - 8), 1, en.dir > 0 ? 3 : 1, false); });
+      // the wolf, then Zip
+      ctx.pet.draw(g, ctx.pet.x, ctx.pet.y + 8, 16);
       // Zip
       var blink = (p.hurt > 0 || S.safeT > 0) && Math.floor(S.time * 14) % 2 === 0;
       if (!blink) {

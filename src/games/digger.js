@@ -59,7 +59,7 @@ PCCab.register((function () {
     }
     function spawnPlayer() {
       S.p = { x: Math.floor(COLS / 2), y: SKY, dir: -1, facing: 2, want: -1, dead: 0, anim: 0, pumpT: 0 };
-      S.hose = null;
+      S.hose = null; ctx.pet.reset(S.p.x, S.p.y, 2);
       S.enemies.forEach(function (e) { if (!e.dead) { e.x = e.hx; e.y = e.hy; e.inflate = 0; e.ghost = false; e.charge = 0; e.flameT = 0; } });
       S.flames = [];
       S.safeT = 1.2;
@@ -77,7 +77,7 @@ PCCab.register((function () {
       var o = S.ore[idx(x, y)];
       if (o) {
         var k = ['', 'coal', 'iron', 'gold', 'diamond'][o];
-        ctx.addOre(k, 1); S.ore[idx(x, y)] = 0;
+        ctx.addOre(k, 1); S.ore[idx(x, y)] = 0; ctx.pet.bark();
         pop(px(x), py(y) - 8, '+1 ' + k.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.COAL, drop: k }); ctx.buzz(15);
       } else ctx.fx('hit', { tile: T.DIRT });
       burst(px(x), py(y), ['#8a5a36', '#7a4e2e', '#5c3a22', '#40281a'][layerOf(y)], 4);
@@ -89,6 +89,7 @@ PCCab.register((function () {
     function update(dt) {
       S.time += dt;
       if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.p.dead > 0) ctx.pet.sit(dt); else ctx.pet.follow(S.p.x, S.p.y, dt, { dist: 1.1, snap: 3, speed: 4.5 });
       if (S.hintT > 0) { S.hintT -= dt; if (S.hintT <= 0) S.msg = { text: 'FACE A MONSTER + PUMP', t: 2.8 }; }
       if (S.shake > 0) S.shake -= dt;
       if (S.safeT > 0) S.safeT -= dt;
@@ -179,7 +180,7 @@ PCCab.register((function () {
       if (e.inflate >= 4) popEnemy(e, 'pump');
     }
     function popEnemy(e, how) {
-      e.dead = true; S.hose = null;
+      e.dead = true; S.hose = null; ctx.pet.bark(how === 'rock' ? 'WOOF!' : 'YIP!');
       var L = layerOf(Math.round(e.y)), pts = LAYER_PTS[L] * (e.kind === 'flamer' ? 2 : 1) * (how === 'rock' ? 2 : 1);
       addScore(pts); pop(px(e.x), py(e.y) - 10, String(pts), '#7df9ff');
       burst(px(e.x), py(e.y), e.kind === 'flamer' ? '#d2402f' : '#a85fe2', 14);
@@ -328,7 +329,8 @@ PCCab.register((function () {
       if (S.hose) { var p0 = S.p, e = S.hose.e; g.strokeStyle = '#e8e8ee'; g.lineWidth = 3; g.beginPath(); g.moveTo(px(p0.x), py(p0.y)); g.lineTo(px(e.x), py(e.y)); g.stroke(); g.fillStyle = '#d8322b'; g.fillRect(px(e.x) - 3, py(e.y) - 3, 6, 6); }
       // enemies
       S.enemies.forEach(function (e) { if (!e.dead) drawEnemy(g, e); });
-      // hero
+      // wolf, then hero
+      ctx.pet.draw(g, px(ctx.pet.x), py(ctx.pet.y) + TS / 2 - 2, TS);
       var p = S.p, hx = px(p.x), hy = py(p.y), HS = TS * 1.0;
       if (p.dead > 0) { g.save(); g.translate(hx, hy); g.rotate(p.dead * 8); var sc = Math.max(0, 1 - p.dead * 0.6); g.scale(sc, sc); g.drawImage(hero.down[0], -HS / 2, -HS / 2, HS, HS); g.restore(); }
       else {
