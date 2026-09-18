@@ -1,7 +1,7 @@
 {
   "name": "paccraft",
-  "version": "1.0.0",
-  "description": "PacCraft — a blocky maze-chase game for phones: gobble gems, dig, build, craft, and bonk cube monsters.",
+  "version": "2.0.0",
+  "description": "Blockcade — a blocky mash-up arcade for phones: PacCraft, Cheetah Dash, Tunnel Trouble, Block Breaker.",
   "private": true,
   "scripts": {
     "test": "node tests/sim.test.js",

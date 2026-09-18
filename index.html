@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>PacCraft</title>
-<meta name="description" content="PacCraft — a blocky maze-chase adventure: gobble gems, dig through walls, build blocks, and bonk cube monsters with Power Crystals.">
+<title>Blockcade</title>
+<meta name="description" content="Blockcade — a blocky mash-up arcade: PacCraft, Cheetah Dash, Tunnel Trouble and Block Breaker, with shared ores, crafting and the Lucky Mine.">
 <meta name="theme-color" content="#1a1420">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -12,16 +12,74 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="PacCraft">
+<meta name="apple-mobile-web-app-title" content="Blockcade">
 <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
 <!-- BEGIN APP -->
 <div id="app">
 
-  <!-- ================= TITLE ================= -->
-  <section id="screen-title" class="screen active">
+  <!-- ================= ARCADE HUB ================= -->
+  <section id="screen-hub" class="screen active">
+    <div class="hub-wrap">
+      <canvas id="hub-sign" class="hub-sign" aria-label="Blockcade"></canvas>
+      <div class="tagline">A blocky mash-up arcade</div>
+      <div class="hub-top"><div class="hello" id="hub-hello">Hi, Max!</div><div class="hub-bank" id="hub-bank"></div></div>
+      <div class="cabinets" id="cabinets"></div>
+      <div class="menu-row hub-row">
+        <button class="btn btn-gold" id="hub-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button>
+        <button class="btn" id="hub-craft"><span class="ico" data-ico="craft"></span>Craft</button>
+        <button class="btn" id="hub-hero"><span class="ico" data-ico="hero"></span>Hero</button>
+      </div>
+      <button class="corner-btn" id="hub-settings" aria-label="Settings"><span class="ico" data-ico="gear"></span></button>
+    </div>
+  </section>
+
+  <!-- ================= CABINET (shared canvas game screen) ================= -->
+  <section id="screen-cab" class="screen game cab">
+    <div class="hud">
+      <div class="hud-row">
+        <button class="hud-btn" id="cab-pause-btn" aria-label="Pause"><span class="ico" data-ico="pause"></span></button>
+        <div class="cab-title" id="cab-title"></div>
+        <div class="score" id="cab-score">0</div>
+        <div class="lvl" id="cab-hi">BEST 0</div>
+      </div>
+      <div class="hud-row small"><div class="chip" id="cab-ores"></div></div>
+    </div>
+    <div class="stage" id="cab-stage"><canvas id="cab-canvas"></canvas></div>
+    <div class="controls" id="cab-controls">
+      <div class="dpad" id="cab-dpad" aria-label="Move">
+        <div class="dpad-ring"></div>
+        <div class="dpad-arrow up">▲</div><div class="dpad-arrow left">◀</div><div class="dpad-arrow down">▼</div><div class="dpad-arrow right">▶</div>
+        <div class="dpad-knob" id="cab-knob"></div>
+      </div>
+      <div class="actions">
+        <button class="act act-b" id="cab-b"><span>B</span></button>
+        <button class="act act-a" id="cab-a"><span>A</span></button>
+      </div>
+    </div>
+    <div class="overlay" id="cab-pause" hidden>
+      <div class="card">
+        <h2>Paused</h2>
+        <button class="btn btn-green btn-lg" id="cab-resume">Keep Playing</button>
+        <button class="btn" id="cab-restart">Restart</button>
+        <button class="btn btn-red" id="cab-quit">Quit to Arcade</button>
+      </div>
+    </div>
+    <div class="overlay" id="cab-over" hidden>
+      <div class="card">
+        <h2 id="cab-over-title" class="lose">Game Over</h2>
+        <div class="stats" id="cab-over-stats"></div>
+        <button class="btn btn-green btn-lg" id="cab-again">Play Again</button>
+        <button class="btn btn-sm" id="cab-menu">Back to Arcade</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PACCRAFT TITLE ================= -->
+  <section id="screen-title" class="screen">
     <div class="title-wrap">
+      <button class="corner-btn corner-left" id="btn-title-hub" aria-label="Back to arcade">◀</button>
       <canvas id="logo" class="logo" aria-label="PacCraft"></canvas>
       <div class="tagline">Gobble gems · Dig tunnels · Bonk monsters!</div>
       <canvas id="title-scene" class="title-scene"></canvas>
@@ -198,7 +256,7 @@
       <div class="panel settings" id="settings-list"></div>
       <div class="panel">
         <button class="btn btn-red" id="btn-reset">Reset All Progress</button>
-        <div class="hint">PacCraft v<span id="ver"></span> · made for Max</div>
+        <div class="hint">Blockcade v<span id="ver"></span> · made for Max</div>
       </div>
     </div>
   </section>
@@ -222,6 +280,10 @@
 <script src="src/audio.js"></script>
 <script src="src/render.js"></script>
 <script src="src/builder.js"></script>
+<script src="src/cab.js"></script>
+<script src="src/games/breaker.js"></script>
+<script src="src/games/digger.js"></script>
+<script src="src/games/dash.js"></script>
 <script src="src/app.js"></script>
 </body>
 </html>

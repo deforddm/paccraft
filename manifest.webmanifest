@@ -1,7 +1,7 @@
 {
-  "name": "PacCraft",
-  "short_name": "PacCraft",
-  "description": "A blocky maze-chase adventure: gobble gems, dig through walls, build blocks, and bonk cube monsters with Power Crystals.",
+  "name": "Blockcade",
+  "short_name": "Blockcade",
+  "description": "A blocky mash-up arcade: PacCraft, Cheetah Dash, Tunnel Trouble and Block Breaker, with shared ores, crafting and the Lucky Mine.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",

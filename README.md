@@ -1,6 +1,17 @@
-# PacCraft
+# Blockcade
 
-A mobile maze-chase game made for Max — Pac-Man-style gem gobbling mixed with Minecraft-style digging, building and crafting. It's a web app / PWA: it runs in any phone browser, installs to the home screen, and works offline.
+A blocky mash-up arcade made for Max — four retro arcade games in one installable web app, sharing one bag of ores, one crafting table, one hero and the Lucky Mine. It runs in any phone browser, installs to the home screen, and works offline.
+
+| Cabinet | What it is | Controls |
+|---|---|---|
+| **PacCraft** | Pac-Man × block-digging: gobble gems, dig tunnels, drop blocks, bonk cube monsters (the original game — everything below still applies) | joystick / swipe, DIG, block, TNT |
+| **Cheetah Dash** | A speed platformer: Zip the cheetah tears over rolling block hills, loop-the-loops, springs and platforms, collecting emeralds and stomping cube monsters. Get hit and your emeralds scatter; get hit with none and you lose a life. Hold **SPIN** while standing and let go to spin-dash (breaks ore blocks, bonks monsters). Five zones that cycle harder: Meadow Hills, Sandy Dunes, Frosty Ridge, Magma Run, Crystal Rush. | ◀ ▶, JUMP, SPIN |
+| **Tunnel Trouble** | Dig Dug style: dig tunnels through four dirt layers, face a monster and **PUMP** it four times to pop it (deeper = more points, flame-breathers double), or dig under a boulder so it drops on them. Ore veins in the dirt go into your bag. Rounds add monsters. | joystick, PUMP |
+| **Block Breaker** | Breakout with blocks: drag to move the plank paddle, tap to launch the slime ball. Dirt breaks in one hit, stone two, basalt three, bedrock never; ore blocks drop their ore; TNT blows up its neighbours; crystals spawn an extra ball. Power-ups: Wide, Multi-ball, Slow-mo, Fire ball, Sticky, +Life. | drag / tap (or ◀ ▶ + Space) |
+
+Each cabinet keeps its own best score. Ores earned anywhere spend anywhere — at the Crafting Table (PacCraft upgrades), on hats and the wolf, and in the Lucky Mine.
+
+## PacCraft
 
 ## How it plays
 
@@ -50,13 +61,17 @@ Both booths pay back a little less than they take over time (roughly 85–90% wi
 ## Play / install
 
 - **Hosted:** open the GitHub Pages URL on the phone. Android Chrome: menu → *Install app* (or *Add to Home screen*). iPhone Safari: Share → *Add to Home Screen*. It launches full-screen and works offline.
-- **Single file:** `dist/paccraft.html` is the whole game in one file — double-click it on a computer, or send it anywhere.
+- **Single file:** `dist/blockcade.html` is the whole arcade in one file — double-click it on a computer, or send it anywhere.
 - **Locally:** `npx serve .` (or `python -m http.server 8080`) and open the printed URL.
 
 ## Project layout
 
 ```
-index.html            app shell (all screens)
+index.html            app shell (arcade hub + all screens)
+src/cab.js            shared cabinet runtime for the canvas games: scaling, joystick/buttons/drag/keyboard, pause, game over, ore rewards
+src/games/dash.js     Cheetah Dash (level generator, physics, loops, Zip's sprites)
+src/games/digger.js   Tunnel Trouble
+src/games/breaker.js  Block Breaker
 src/world.js          blocks, biomes, seeded RNG, symmetric maze generator, custom levels
 src/game.js           rules + simulation: movement, monster AI, digging, blocks, TNT, power, scoring
 src/textures.js       all pixel art, drawn in code (blocks, hero, monsters, items, icons, bitmap font)
@@ -70,7 +85,7 @@ manifest.webmanifest  PWA manifest
 icons/                app icons (rendered from the game's own art: npm run icons)
 tests/sim.test.js     maze invariants (560 mazes) + long headless play simulations
 tests/bot.js          balance bot: clear rates per difficulty
-tools/build.js        builds dist/paccraft.html and dist/artifact.html
+tools/build.js        builds dist/blockcade.html and dist/artifact.html
 ```
 
 No framework and no build step needed to run it. Node is only used for tests and the single-file bundle.
