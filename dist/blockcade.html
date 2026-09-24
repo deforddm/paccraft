@@ -312,6 +312,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cab-card.crossing { border-color: #4fc96a; }
 .cab-card.snake { border-color: #5ef0a8; }
 .cab-card.stack { border-color: #e36bff; }
+.cab-card.tntmaze { border-color: #d8322b; }
+.cab-card.cubehop { border-color: #f2c230; }
+.cab-card.tower { border-color: #b98a4a; }
+.cab-card.caveworm { border-color: #e87aa0; }
+.cab-card.skyguard { border-color: #ff6bd6; }
+.cab-card.meteor { border-color: #7df9ff; }
+.cab-card.minecart { border-color: #8b8b96; }
+.cab-card.bonk { border-color: #7dff8a; }
+@media (min-width: 700px) { .hub-wrap { max-width: 760px; } .cabinets { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1000px) { .hub-wrap { max-width: 980px; } .cabinets { grid-template-columns: repeat(4, 1fr); } }
 .hello-row { display: flex; align-items: center; gap: 8px; }
 .hub-pet { width: 70px; height: 60px; image-rendering: pixelated; cursor: pointer; flex: none; margin-left: -6px; }
 .hub-row { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
@@ -3108,6 +3118,32 @@ var PCCab = (function () {
   var last = 0, raf = 0;
 
   function register(def) { games[def.id] = def; order.push(def.id); }
+
+  // small shared toolkit for cabinets: particles, score popups, banner message, hearts
+  function kit() {
+    var parts = [], pops = [];
+    return {
+      burst: function (x, y, col, n, sp) { sp = sp || 150; for (var i = 0; i < n; i++) parts.push({ x: x, y: y, vx: (Math.random() - 0.5) * sp, vy: -Math.random() * sp * 0.75 - 10, g: 280, life: 0.4 + Math.random() * 0.3, t: 0, col: col, s: 2 + Math.random() * 3 }); },
+      pop: function (x, y, text, col) { pops.push({ x: x, y: y, text: String(text), col: col || '#fff', t: 0 }); },
+      tick: function (dt) {
+        for (var i = parts.length - 1; i >= 0; i--) { var p = parts[i]; p.t += dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.t >= p.life) parts.splice(i, 1); }
+        for (var j = pops.length - 1; j >= 0; j--) { pops[j].t += dt; if (pops[j].t >= 1) pops.splice(j, 1); }
+      },
+      draw: function (g) {
+        parts.forEach(function (p) { g.globalAlpha = Math.max(0, 1 - p.t / p.life); g.fillStyle = p.col; g.fillRect(p.x, p.y, p.s, p.s); }); g.globalAlpha = 1;
+        pops.forEach(function (p) { g.globalAlpha = Math.max(0, 1 - p.t); PCTex.drawText(g, p.text, Math.round(p.x - PCTex.textWidth(p.text, 1) / 2), Math.round(p.y - p.t * 24), 1, p.col, '#000'); }); g.globalAlpha = 1;
+      },
+      clear: function () { parts.length = 0; pops.length = 0; },
+      banner: function (g, W, H, msg, y) {
+        if (!msg) return;
+        var s = msg.text.length > 12 ? 2 : 3, tw = PCTex.textWidth(msg.text, s), yy = y == null ? H / 2 - 20 : y, hh = msg.sub ? 52 : 36;
+        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(Math.round(W / 2 - tw / 2 - 10), yy, tw + 20, hh);
+        PCTex.drawText(g, msg.text, Math.round(W / 2 - tw / 2), yy + 10, s, '#ffe680', '#000');
+        if (msg.sub) PCTex.drawText(g, msg.sub, Math.round(W / 2 - PCTex.textWidth(msg.sub, 2) / 2), yy + 34, 2, '#fff', '#000');
+      },
+      hearts: function (g, tex, n, x, y) { for (var i = 0; i < n; i++) g.drawImage(tex.heart[1], x + i * 16, y, 14, 13); }
+    };
+  }
   function list() { return order.map(function (id) { return games[id]; }); }
   function setApi(a) { api = a; }
 
@@ -3297,7 +3333,7 @@ var PCCab = (function () {
     document.addEventListener('visibilitychange', function () { if (document.hidden && cur) togglePause(true); });
   }
 
-  return { register: register, list: list, games: games, setApi: setApi, init: init, start: start, stop: stop, resize: resize, isRunning: function () { return !!cur; }, current: function () { return cur; }, held: held };
+  return { register: register, list: list, kit: kit, games: games, setApi: setApi, init: init, start: start, stop: stop, resize: resize, isRunning: function () { return !!cur; }, current: function () { return cur; }, held: held };
 })();
 
 
@@ -5116,10 +5152,1574 @@ PCCab.register((function () {
 })());
 
 
+/* TNT Maze — Bomberman with blocks. Drop TNT to blast through dirt and planks, bonk the
+ * cube monsters in the blast, grab ore and power-ups from the rubble, then find the portal. */
+PCCab.register((function () {
+  'use strict';
+  var TS = 24, COLS = 13, ROWS = 13, OY = 28, W = COLS * TS, H = OY + ROWS * TS + 4;
+  var DX = [0, -1, 0, 1], DY = [-1, 0, 1, 0];
+  var MON = { mudge: { sp: 1.7, pts: 100, smart: 0 }, sly: { sp: 2.1, pts: 200, smart: 0.45 }, frost: { sp: 2.5, pts: 400, smart: 0.25 } };
+
+  function create(ctx) {
+    var tex = ctx.tex, Wd = window.PCWorld, T = Wd.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {}, bg = null;
+    function idx(x, y) { return y * COLS + x; }
+    function inb(x, y) { return x >= 0 && y >= 0 && x < COLS && y < ROWS; }
+    function px(x) { return x * TS + TS / 2; }
+    function py(y) { return OY + y * TS + TS / 2; }
+
+    function reset() { S.level = 1; S.lives = 3; S.score = 0; S.time = 0; S.maxBombs = 1; S.range = 1; S.boots = 0; S.msg = null; newLevel(); }
+    function newLevel() {
+      var r = Wd.rng(S.level * 9173 + 3), lv = S.level;
+      S.cell = new Uint8Array(COLS * ROWS); S.hide = {}; S.items = {}; S.bombs = []; S.flames = []; S.mons = []; K.clear();
+      for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
+        var c = 0;
+        if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) c = 1;
+        else if (x % 2 === 0 && y % 2 === 0) c = 2;
+        else if (!(x <= 2 && y <= 2) && r() < 0.5) c = 3;
+        S.cell[idx(x, y)] = c;
+      }
+      var soft = []; for (var i = 0; i < S.cell.length; i++) if (S.cell[i] === 3) soft.push(i);
+      for (var k = soft.length - 1; k > 0; k--) { var j = Math.floor(r() * (k + 1)), t = soft[k]; soft[k] = soft[j]; soft[j] = t; }
+      var n = 0;
+      S.hide[soft[n++]] = 'exit';
+      ['bomb', 'fire', lv % 2 ? 'fire' : 'bomb', 'speed'].forEach(function (pw, q) { if (q < 3 || lv >= 2) S.hide[soft[n++]] = 'pw:' + pw; });
+      var ores = 3 + Math.min(4, lv), OK = ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'];
+      for (var o = 0; o < ores && n < soft.length; o++) S.hide[soft[n++]] = 'ore:' + OK[Math.min(OK.length - 1, Math.floor(r() * (3 + lv * 0.7)))];
+      // monsters on open cells far from the start
+      var open = []; for (var yy = 1; yy < ROWS - 1; yy++) for (var xx = 1; xx < COLS - 1; xx++) if (S.cell[idx(xx, yy)] === 0 && xx + yy >= 8) open.push([xx, yy]);
+      var count = Math.min(8, 3 + lv), kinds = lv >= 4 ? ['mudge', 'sly', 'frost'] : lv >= 2 ? ['mudge', 'sly'] : ['mudge'];
+      for (var m = 0; m < count && open.length; m++) {
+        var pick = open.splice(Math.floor(r() * open.length), 1)[0], kind = kinds[m % kinds.length];
+        S.mons.push({ x: pick[0], y: pick[1], tx: pick[0], ty: pick[1], dir: Math.floor(r() * 4), kind: kind, dead: 0, anim: r() * 4 });
+      }
+      bg = null; spawn();
+      S.msg = { text: 'LEVEL ' + lv, sub: lv === 1 ? 'DROP TNT - FIND THE PORTAL' : null, t: 2 }; ctx.A.play('ready');
+    }
+    function spawn() {
+      S.p = { x: 1, y: 1, tx: 1, ty: 1, dir: 2, face: 2, dead: 0, anim: 0 };
+      S.safeT = 2; S.bombs = []; S.flames = [];
+      ctx.pet.reset(1, 1, 2);
+    }
+    function speed() { return 3.6 + S.boots * 0.6; }
+    function bombAt(x, y) { for (var i = 0; i < S.bombs.length; i++) if (S.bombs[i].x === x && S.bombs[i].y === y) return S.bombs[i]; return null; }
+    function open(x, y) { return inb(x, y) && S.cell[idx(x, y)] === 0 && !bombAt(x, y); }
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+
+    // grid movers (player + monsters): step from tile to tile
+    function stepMover(o, dt, sp, choose) {
+      var left = sp * dt, guard = 0;
+      while (left > 0 && guard++ < 4) {
+        if (o.x === o.tx && o.y === o.ty) {
+          var d = choose(o); if (d < 0) return;
+          var nx = o.x + DX[d], ny = o.y + DY[d];
+          if (!open(nx, ny)) { o.face = d; return; }
+          o.tx = nx; o.ty = ny; o.dir = d; o.face = d;
+        }
+        var dx = o.tx - o.x, dy = o.ty - o.y, dist = Math.abs(dx) + Math.abs(dy);
+        if (dist <= left) { o.x = o.tx; o.y = o.ty; left -= dist; o.anim += dist * 2; if (o.arrive) o.arrive(o); }
+        else { o.x += Math.sign(dx) * left; o.y += Math.sign(dy) * left; o.anim += left * 2; left = 0; }
+      }
+    }
+    function playerChoose(o) {
+      var d = ctx.held.dir;
+      if (d < 0) return -1;
+      return d;
+    }
+    function monChoose(m) {
+      var dirs = [0, 1, 2, 3].filter(function (d) { return open(m.x + DX[d], m.y + DY[d]); });
+      if (!dirs.length) return -1;
+      var info = MON[m.kind];
+      if (Math.random() < info.smart + Math.min(0.2, S.level * 0.02)) {
+        var best = dirs[0], bd = 1e9;
+        dirs.forEach(function (d) { var dd = Math.abs(m.x + DX[d] - S.p.x) + Math.abs(m.y + DY[d] - S.p.y); if (dd < bd) { bd = dd; best = d; } });
+        return best;
+      }
+      if (dirs.indexOf(m.dir) >= 0 && Math.random() < 0.75) return m.dir;
+      var noBack = dirs.filter(function (d) { return d !== (m.dir + 2) % 4; });
+      var pool = noBack.length ? noBack : dirs;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    function dropBomb() {
+      var p = S.p; if (p.dead > 0) return;
+      var bx = Math.round(p.x), by = Math.round(p.y);
+      if (S.bombs.length >= S.maxBombs || bombAt(bx, by) || S.cell[idx(bx, by)] !== 0) return;
+      S.bombs.push({ x: bx, y: by, t: 2.2, r: S.range }); ctx.fx('tnt');
+    }
+    function explode(b) {
+      S.bombs.splice(S.bombs.indexOf(b), 1);
+      ctx.fx('boom'); ctx.buzz([30, 20, 40]); S.shake = 0.25;
+      addFlame(b.x, b.y);
+      for (var d = 0; d < 4; d++) for (var k = 1; k <= b.r; k++) {
+        var x = b.x + DX[d] * k, y = b.y + DY[d] * k; if (!inb(x, y)) break;
+        var c = S.cell[idx(x, y)];
+        if (c === 1 || c === 2) break;
+        addFlame(x, y);
+        if (c === 3) { breakBlock(x, y); break; }
+        var other = bombAt(x, y); if (other) other.t = Math.min(other.t, 0.06);
+      }
+    }
+    function addFlame(x, y) { S.flames.push({ x: x, y: y, t: 0.5 }); }
+    function breakBlock(x, y) {
+      var i = idx(x, y); S.cell[i] = 0; addScore(10);
+      K.burst(px(x), py(y), '#8a5a36', 6);
+      if (S.hide[i]) { S.items[i] = S.hide[i]; delete S.hide[i]; }
+    }
+    function killPlayer() {
+      var p = S.p; if (p.dead > 0 || S.safeT > 0) return;
+      p.dead = 1.3; S.lives--; ctx.fx('death'); ctx.buzz([60, 40, 80]); K.burst(px(p.x), py(p.y), '#ffb37a', 14);
+    }
+    function pickup() {
+      var p = S.p, i = idx(Math.round(p.x), Math.round(p.y)), it = S.items[i];
+      if (!it) return;
+      if (it === 'exit') {
+        if (S.mons.some(function (m) { return !m.dead; })) return;
+        addScore(1000 * S.level); ctx.addOre('coal', 1 + Math.floor(S.level / 2)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
+        S.level++; newLevel(); return;
+      }
+      delete S.items[i];
+      if (it.indexOf('ore:') === 0) { var k = it.slice(4); ctx.addOre(k, 1); addScore(200); K.pop(px(p.x), py(p.y) - 12, '+1 ' + k.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: k }); ctx.buzz(15); ctx.pet.bark(); }
+      else {
+        var pw = it.slice(3);
+        if (pw === 'bomb') S.maxBombs = Math.min(5, S.maxBombs + 1); else if (pw === 'fire') S.range = Math.min(6, S.range + 1); else S.boots = Math.min(3, S.boots + 1);
+        addScore(100); ctx.fx('unlock'); K.pop(px(p.x), py(p.y) - 12, { bomb: '+1 TNT', fire: 'BIGGER BLAST', speed: 'SPEEDY BOOTS' }[pw], '#7df9ff');
+      }
+    }
+
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.shake > 0) S.shake -= dt; if (S.safeT > 0) S.safeT -= dt;
+      var p = S.p;
+      // bombs & flames
+      S.bombs.slice().forEach(function (b) { b.t -= dt; if (b.t <= 0) explode(b); });
+      S.flames.forEach(function (f) { f.t -= dt; }); S.flames = S.flames.filter(function (f) { return f.t > 0; });
+      function inFlame(x, y) { var rx = Math.round(x), ry = Math.round(y); return S.flames.some(function (f) { return f.x === rx && f.y === ry; }); }
+      // player
+      if (p.dead > 0) {
+        p.dead -= dt; ctx.pet.sit(dt);
+        if (p.dead <= 0) { if (S.lives <= 0) { ctx.over({ lines: [['Level reached', S.level]] }); return; } spawn(); S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 }; }
+      } else {
+        // allow turning back mid-step
+        var hd = ctx.held.dir;
+        if (hd >= 0 && (p.x !== p.tx || p.y !== p.ty) && hd === (p.dir + 2) % 4) { var ox = p.tx - DX[p.dir], oy = p.ty - DY[p.dir]; p.tx = ox; p.ty = oy; p.dir = hd; p.face = hd; }
+        p.arrive = pickup;
+        stepMover(p, dt, speed(), playerChoose);
+        if (inFlame(p.x, p.y)) killPlayer();
+        ctx.pet.follow(p.x, p.y, dt, { dist: 1.1, snap: 3, speed: speed() });
+      }
+      // monsters
+      S.mons.forEach(function (m) {
+        m.anim += dt * 3;
+        if (m.dead > 0) { m.dead -= dt; if (m.dead <= 0) m.dead = -1; return; }
+        if (m.dead < 0) return;
+        stepMover(m, dt, MON[m.kind].sp * (1 + Math.min(0.4, (S.level - 1) * 0.04)), monChoose);
+        if (inFlame(m.x, m.y)) {
+          m.dead = 0.6; var pts = MON[m.kind].pts * S.level; addScore(pts); K.pop(px(m.x), py(m.y) - 12, pts, '#7df9ff'); K.burst(px(m.x), py(m.y), '#c9ccd4', 10); ctx.fx('bonk');
+          if (!S.mons.some(function (o) { return o !== m && o.dead === 0; })) { ctx.fx('crystal'); K.pop(W / 2, OY + 40, 'PORTAL OPEN!', '#e36bff'); ctx.pet.bark(); }
+        } else if (p.dead <= 0 && S.safeT <= 0 && Math.abs(m.x - p.x) + Math.abs(m.y - p.y) < 0.7) killPlayer();
+      });
+      S.mons = S.mons.filter(function (m) { return m.dead >= 0; });
+    }
+
+    function drawBg(g) {
+      if (bg) return g.drawImage(bg, 0, 0);
+      bg = document.createElement('canvas'); bg.width = W; bg.height = H; var b = bg.getContext('2d'); b.imageSmoothingEnabled = false;
+      b.fillStyle = '#1a1420'; b.fillRect(0, 0, W, H);
+      for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
+        var c = S.cell[idx(x, y)], X = x * TS, Y = OY + y * TS;
+        if (c === 1) b.drawImage(tex.blocks[T.BORDER].top, 0, 0, 16, 16, X, Y, TS, TS);
+        else if (c === 2) { b.drawImage(tex.blocks[T.STONE].top, 0, 0, 16, 16, X, Y, TS, TS); b.fillStyle = 'rgba(255,255,255,0.18)'; b.fillRect(X, Y, TS, 2); b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(X, Y + TS - 3, TS, 3); }
+        else { b.drawImage(tex.floors.meadow[(x * 3 + y * 5) % 3], 0, 0, 16, 16, X, Y, TS, TS); }
+      }
+      g.drawImage(bg, 0, 0);
+    }
+    function draw(g) {
+      g.save(); if (S.shake > 0) g.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+      drawBg(g);
+      var allDead = !S.mons.some(function (m) { return m.dead === 0; });
+      // items revealed on the floor
+      Object.keys(S.items).forEach(function (k) {
+        var i = +k, x = i % COLS, y = Math.floor(i / COLS), X = x * TS, Y = OY + y * TS, it = S.items[k];
+        if (it === 'exit') {
+          g.fillStyle = '#1b1822'; g.fillRect(X + 2, Y + 1, TS - 4, TS - 2);
+          g.fillStyle = allDead ? (Math.floor(S.time * 6) % 2 ? '#e36bff' : '#b24bdb') : '#5a3a6a'; g.fillRect(X + 5, Y + 4, TS - 10, TS - 8);
+          if (allDead) { g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(X + 7 + Math.sin(S.time * 5) * 3, Y + 7, 3, 3); }
+        } else if (it.indexOf('ore:') === 0) g.drawImage(tex.ores[it.slice(4)], X + 5, Y + 5 + Math.sin(S.time * 4 + i) * 1.5, 14, 14);
+        else {
+          var pw = it.slice(3); g.fillStyle = '#1b1822'; g.fillRect(X + 3, Y + 3, TS - 6, TS - 6);
+          g.fillStyle = pw === 'bomb' ? '#d8322b' : pw === 'fire' ? '#ff8a1f' : '#3f8fe0'; g.fillRect(X + 4, Y + 4, TS - 8, TS - 8);
+          if (pw === 'bomb') g.drawImage(tex.tnt[0], X + 6, Y + 6, 12, 12); else if (pw === 'speed') g.drawImage(tex.boot, X + 6, Y + 6, 12, 12);
+          else { g.fillStyle = '#ffd23d'; g.fillRect(X + 9, Y + 7, 6, 10); g.fillStyle = '#fff3a0'; g.fillRect(X + 11, Y + 11, 2, 5); }
+        }
+      });
+      // soft blocks
+      for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
+        if (S.cell[idx(x, y)] !== 3) continue;
+        var X = x * TS, Y = OY + y * TS, tt = (x * 7 + y * 3) % 4 === 0 ? T.PLANKS : T.DIRT;
+        g.drawImage(tex.blocks[tt].top, 0, 0, 16, 16, X, Y, TS, TS);
+        g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(X, Y, TS, 2); g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(X, Y + TS - 3, TS, 3);
+      }
+      // bombs
+      S.bombs.forEach(function (b) { var sc = 1 + Math.sin(S.time * (b.t < 0.8 ? 30 : 12)) * 0.08, s = 18 * sc; g.drawImage(tex.tnt[b.t < 0.8 && Math.floor(S.time * 12) % 2 ? 1 : 0], px(b.x) - s / 2, py(b.y) - s / 2, s, s); });
+      // flames
+      S.flames.forEach(function (f) { var X = f.x * TS, Y = OY + f.y * TS, a = Math.min(1, f.t * 3); g.globalAlpha = a; g.fillStyle = '#ff6a1f'; g.fillRect(X + 1, Y + 1, TS - 2, TS - 2); g.fillStyle = '#ffd23d'; g.fillRect(X + 5, Y + 5, TS - 10, TS - 10); g.fillStyle = '#fff3a0'; g.fillRect(X + 9, Y + 9, TS - 18, TS - 18); g.globalAlpha = 1; });
+      // monsters
+      S.mons.forEach(function (m) {
+        var s = 22, X = Math.round(px(m.x) - s / 2), Y = Math.round(py(m.y) - s / 2) - 1;
+        if (m.dead > 0) { g.globalAlpha = m.dead / 0.6; g.drawImage(tex.mons.flash[0], X, Y, s, s); g.globalAlpha = 1; return; }
+        g.drawImage(tex.mons[m.kind][Math.floor(m.anim) % 2], X, Y, s, s); PCTex.drawEyes(g, X, Y, s / 16, m.face != null ? m.face : m.dir, false);
+      });
+      // wolf + hero
+      ctx.pet.draw(g, px(ctx.pet.x), py(ctx.pet.y) + TS / 2 - 2, 20);
+      var p = S.p, hx = px(p.x), hy = py(p.y);
+      if (p.dead > 0) { g.save(); g.translate(hx, hy); g.rotate((1.3 - p.dead) * 8); var sc = Math.max(0, p.dead / 1.3); g.scale(sc, sc); g.drawImage(hero.down[0], -12, -12, 24, 24); g.restore(); }
+      else if (!(S.safeT > 0 && Math.floor(S.time * 10) % 2)) {
+        var mv = p.x !== p.tx || p.y !== p.ty, fr = mv ? 1 + Math.floor(p.anim) % 2 : 0;
+        g.drawImage(hero[['up', 'left', 'down', 'right'][p.face]][fr], Math.round(hx - 12), Math.round(hy - 14), 24, 24);
+      }
+      K.draw(g);
+      // hud
+      g.fillStyle = '#1a1420'; g.fillRect(0, 0, W, OY);
+      K.hearts(g, tex, S.lives, 6, 7);
+      g.drawImage(tex.tnt[0], 100, 7, 14, 14); PCTex.drawText(g, 'x' + S.maxBombs, 116, 9, 2, '#fff', '#000');
+      g.fillStyle = '#ff8a1f'; g.fillRect(152, 8, 8, 12); PCTex.drawText(g, String(S.range), 163, 9, 2, '#fff', '#000');
+      PCTex.drawText(g, 'LV ' + S.level, W - 54, 9, 2, '#ffe680', '#000');
+      K.banner(g, W, H, S.msg);
+      g.restore();
+    }
+    function input(e) {
+      if (e.type === 'a' && e.down) dropBomb();
+      else if (e.type === 'touch' && e.phase === 'down') dropBomb();
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { explode: explode, dropBomb: dropBomb, idx: idx } };
+  }
+
+  return {
+    id: 'tntmaze', name: 'TNT Maze', blurb: 'Drop TNT to blast through blocks and bonk monsters. Find the portal.',
+    view: { w: W, h: H }, music: 'meadow',
+    controls: { dpad: true, a: 'TNT', b: null },
+    thumb: function (g, w, h, tex, look) {
+      var T2 = window.PCWorld.TILE;
+      for (var y = 0; y < h; y += 8) for (var x = 0; x < w; x += 8) {
+        var gx = x / 8, gy = y / 8, t = (gx === 0 || gy === 0 || gx === 7 || gy === 5) ? T2.BORDER : (gx % 2 === 0 && gy % 2 === 0) ? T2.STONE : ((gx + gy * 3) % 4 === 1 ? T2.DIRT : null);
+        if (t) g.drawImage(tex.blocks[t].top, 0, 0, 16, 16, x, y, 8, 8); else g.drawImage(tex.floors.meadow[0], 0, 0, 16, 16, x, y, 8, 8);
+      }
+      g.fillStyle = '#ff6a1f'; g.fillRect(24, 16, 24, 8); g.fillRect(32, 8, 8, 24); g.fillStyle = '#ffd23d'; g.fillRect(26, 18, 20, 4); g.fillRect(34, 10, 4, 20);
+      g.drawImage(PCTex.hero(look || PCTex.LOOK_DEFAULT).down[0], 8, 30, 12, 12);
+      g.drawImage(tex.mons.sly[0], 50, 30, 10, 10);
+    },
+    create: create
+  };
+})());
+
+
+/* Cube Hop — Q*bert on a pyramid of blocks. Hop diagonally to turn every grass top to gold,
+ * dodge the bouncing slimes and Rumble, catch crystals (freeze) and ore, and ride a floating
+ * lift back to the top when you're cornered. */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 400, ROWS = 7, CW = 40, TOPY = 78, STEP = 30, HOP = 0.28;
+  var MODES = [['GRASS', 'GOLD'], ['GRASS', 'SAND', 'GOLD'], ['GRASS', 'GOLD']];   // 3rd mode: gold flips back
+
+  function create(ctx) {
+    var tex = ctx.tex, T = window.PCWorld.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {};
+    function cx(r, c) { return W / 2 + (c - r / 2) * CW; }
+    function cy(r) { return TOPY + r * STEP; }
+    function valid(r, c) { return r >= 0 && r < ROWS && c >= 0 && c <= r; }
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+
+    function reset() { S.level = 1; S.lives = 3; S.score = 0; S.time = 0; S.msg = null; newLevel(); }
+    function newLevel() {
+      var lv = S.level;
+      S.mode = Math.floor((lv - 1) / 2) % 3; S.states = MODES[S.mode]; S.target = S.states.length - 1; S.flip = S.mode === 2;
+      S.cubes = []; for (var r = 0; r < ROWS; r++) { S.cubes[r] = []; for (var c = 0; c <= r; c++) S.cubes[r][c] = 0; }
+      S.lifts = [{ r: lv >= 3 ? 4 : 3, c: -1 }, { r: lv >= 3 ? 5 : 4, c: (lv >= 3 ? 5 : 4) + 1 }];
+      S.clearT = 0; K.clear();
+      spawnHero();
+      S.msg = { text: 'LEVEL ' + lv, sub: 'TURN THE TOPS ' + S.states[S.target], t: 2.2 }; ctx.A.play('ready');
+      if (lv === 1) S.hintT = 2.3;
+    }
+    function spawnHero() {
+      S.p = { r: 0, c: 0, fr: 0, fc: 0, t: 1, dead: 0, fall: false, lift: null, face: 'down' };
+      S.enemies = []; S.freezeT = 0; S.spawnT = 2.2; S.safeT = 1.2;
+      ctx.pet.reset(cx(0, 0), cy(0), 2);
+    }
+    function pos(o) { // screen position of an actor (feet), with hop arc
+      var t = Math.min(1, o.t), x0 = cx(o.fr, o.fc), y0 = cy(o.fr), x1 = cx(o.r, o.c), y1 = cy(o.r);
+      return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t - Math.sin(t * Math.PI) * 14 };
+    }
+    function cell(o) { return o.t >= 0.5 ? { r: o.r, c: o.c } : { r: o.fr, c: o.fc }; }
+
+    function hopDir(dx, dy) { // quadrant → [dr, dc]
+      if (dy < 0) return dx < 0 ? [-1, -1] : [-1, 0];
+      return dx < 0 ? [1, 0] : [1, 1];
+    }
+    function tryHop(dr, dc) {
+      var p = S.p; if (p.dead > 0 || p.t < 1 || p.lift || S.clearT > 0) return;
+      var nr = p.r + dr, nc = p.c + dc;
+      p.fr = p.r; p.fc = p.c; p.r = nr; p.c = nc; p.t = 0; p.face = dr < 0 ? 'up' : 'down'; p.side = dc === 0 && dr < 0 || dc === 1 ? 'right' : 'left';
+      ctx.fx('hop');
+    }
+    function land() {
+      var p = S.p;
+      if (valid(p.r, p.c)) {
+        var st = S.cubes[p.r][p.c];
+        if (st < S.target) { S.cubes[p.r][p.c] = st + 1; addScore(25); if (st + 1 === S.target) { ctx.fx('gem'); K.burst(cx(p.r, p.c), cy(p.r), '#f2c230', 5, 90); } }
+        else if (S.flip && st === S.target) { S.cubes[p.r][p.c] = 0; ctx.fx('nope'); }
+        checkClear();
+        return;
+      }
+      var lift = S.lifts.filter(function (l) { return l.r === p.r && l.c === p.c; })[0];
+      if (lift) {
+        S.lifts.splice(S.lifts.indexOf(lift), 1);
+        p.lift = { t: 0, x0: cx(p.r, p.c), y0: cy(p.r) }; ctx.fx('unlock'); addScore(50);
+        S.enemies.forEach(function (e) { if (e.kind === 'rumble' && !e.fall) { e.fall = true; e.vy = -60; addScore(500); K.pop(pos(e).x, pos(e).y - 20, '500', '#7df9ff'); ctx.pet.bark(); } });
+        return;
+      }
+      p.fall = true; p.vy = -40; die();
+    }
+    function checkClear() {
+      for (var r = 0; r < ROWS; r++) for (var c = 0; c <= r; c++) if (S.cubes[r][c] !== S.target) return;
+      S.clearT = 1.8; addScore(1000 + 250 * S.level); ctx.addOre('coal', 1 + Math.floor(S.level / 2)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
+      S.enemies = [];
+    }
+    function die() {
+      var p = S.p; if (p.dead > 0) return;
+      p.dead = 1.4; S.lives--; ctx.fx('death'); ctx.buzz([60, 40, 80]);
+      var q = pos(p); K.burst(q.x, q.y - 8, '#ffb37a', 12);
+    }
+    function spawnEnemy() {
+      var lv = S.level, roll = Math.random(), kind;
+      var hasRumble = S.enemies.some(function (e) { return e.kind === 'rumble' || e.kind === 'purple'; });
+      if (!hasRumble && roll < 0.3) kind = 'purple';
+      else if (roll < 0.42) kind = 'crystal';
+      else if (roll < 0.56) kind = 'ore';
+      else if (roll < 0.68 && lv >= 3) kind = 'frost';
+      else kind = 'ball';
+      var c = Math.random() < 0.5 ? 0 : 1;
+      S.enemies.push({ kind: kind, r: 1, c: c, fr: 0, fc: 0, t: 0, drop: 0.35, wait: 0.2, ore: ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (2.5 + lv * 0.6)))] });
+      ctx.fx('foodspawn');
+    }
+    function enemyNext(e) {
+      if (e.kind === 'rumble') { // chase the hero
+        var p = S.p, target = { x: cx(p.r, p.c), y: cy(p.r) }, best = null, bd = 1e9;
+        [[-1, -1], [-1, 0], [1, 0], [1, 1]].forEach(function (d) { var nr = e.r + d[0], nc = e.c + d[1]; if (!valid(nr, nc)) return; var dd = Math.hypot(cx(nr, nc) - target.x, cy(nr) - target.y); if (dd < bd) { bd = dd; best = d; } });
+        return best;
+      }
+      return [1, Math.random() < 0.5 ? 0 : 1];
+    }
+    function updateEnemy(e, dt) {
+      if (e.fall) { e.vy += 700 * dt; e.fy = (e.fy || 0) + e.vy * dt; return e.fy < 400; }
+      if (e.drop > 0) { e.drop -= dt; return true; }
+      if (S.freezeT > 0) return true;
+      if (e.t < 1) { e.t += dt / (e.kind === 'rumble' ? 0.32 : 0.3); if (e.t >= 1) { e.t = 1; e.wait = e.kind === 'rumble' ? 0.55 - Math.min(0.25, S.level * 0.03) : 0.4; if (e.kind === 'frost' && valid(e.r, e.c) && S.cubes[e.r][e.c] > 0) S.cubes[e.r][e.c]--; if (!valid(e.r, e.c)) { e.fall = true; e.vy = 0; } } return true; }
+      e.wait -= dt; if (e.wait > 0) return true;
+      if (e.kind === 'purple' && e.r === ROWS - 1) { e.kind = 'rumble'; ctx.fx('ready'); }
+      var d = enemyNext(e); if (!d) return true;
+      e.fr = e.r; e.fc = e.c; e.r += d[0]; e.c += d[1]; e.t = 0;
+      return true;
+    }
+
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.hintT > 0) { S.hintT -= dt; if (S.hintT <= 0) S.msg = { text: 'TAP WHERE TO HOP', t: 2.4 }; }
+      if (S.safeT > 0) S.safeT -= dt; if (S.freezeT > 0) S.freezeT -= dt;
+      if (S.clearT > 0) { S.clearT -= dt; ctx.pet.sit(dt); if (S.clearT <= 0) { S.level++; newLevel(); } return; }
+      var p = S.p;
+      if (p.dead > 0) {
+        p.dead -= dt; ctx.pet.sit(dt);
+        if (p.fall) { p.vy += 700 * dt; p.fy = (p.fy || 0) + p.vy * dt; }
+        if (p.dead <= 0) {
+          if (S.lives <= 0) { ctx.over({ lines: [['Level reached', S.level]] }); return; }
+          var keep = !p.fall && valid(p.r, p.c) ? { r: p.r, c: p.c } : null;
+          spawnHero(); if (keep) { p = S.p; p.r = p.fr = keep.r; p.c = p.fc = keep.c; ctx.pet.reset(cx(keep.r, keep.c), cy(keep.r), 2); }
+          S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 };
+        }
+        return;
+      }
+      if (p.lift) {
+        p.lift.t += dt / 1.4;
+        if (p.lift.t >= 1) { p.lift = null; p.fr = 0; p.fc = 0; p.r = 0; p.c = 0; p.t = 0.5; ctx.pet.reset(cx(0, 0), cy(0), 2); }
+      } else if (p.t < 1) { p.t += dt / HOP; if (p.t >= 1) { p.t = 1; land(); } }
+      else if (ctx.held.dir >= 0) {
+        var hx = ctx.held.dx, hy = ctx.held.dy, d;
+        if (Math.abs(hx) > 0.3 && Math.abs(hy) > 0.3) d = hopDir(hx, hy);
+        else d = [[-1, 0], [-1, -1], [1, 0], [1, 1]][ctx.held.dir];   // keys: up = up-right, left = up-left, down = down-left, right = down-right
+        tryHop(d[0], d[1]);
+      }
+      if (S.p.dead > 0) return;
+      var q = p.lift ? { x: p.lift.x0 + (cx(0, 0) - p.lift.x0) * p.lift.t, y: p.lift.y0 + (cy(0) - 40 - p.lift.y0) * Math.min(1, p.lift.t * 1.2) } : pos(p);
+      ctx.pet.follow(q.x, q.y, dt, { dist: 26, snap: 140, speed: 160 });
+      // enemies
+      S.spawnT -= dt;
+      if (S.spawnT <= 0) { S.spawnT = Math.max(1.4, 3.6 - S.level * 0.25) * (0.7 + Math.random() * 0.6); if (S.enemies.length < 3 + Math.floor(S.level / 3)) spawnEnemy(); }
+      S.enemies = S.enemies.filter(function (e) { return updateEnemy(e, dt); });
+      // collisions (same cube)
+      if (!p.lift) {
+        var pc = cell(p);
+        S.enemies.slice().forEach(function (e) {
+          if (e.fall || e.drop > 0) return;
+          var ec = cell(e); if (ec.r !== pc.r || ec.c !== pc.c) return;
+          var ep = pos(e);
+          if (e.kind === 'crystal') { S.freezeT = 3.2; addScore(100); K.pop(ep.x, ep.y - 20, 'FREEZE!', '#7df9ff'); ctx.fx('crystal'); remove(e); }
+          else if (e.kind === 'ore') { ctx.addOre(e.ore, 1); addScore(150); K.pop(ep.x, ep.y - 20, '+1 ' + e.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: e.ore }); ctx.buzz(15); ctx.pet.bark(); remove(e); }
+          else if (e.kind === 'frost') { addScore(300); K.pop(ep.x, ep.y - 20, '300', '#7df9ff'); ctx.fx('bonk'); remove(e); }
+          else if (S.freezeT <= 0 && S.safeT <= 0) die();
+        });
+      }
+    }
+    function remove(e) { var i = S.enemies.indexOf(e); if (i >= 0) S.enemies.splice(i, 1); }
+
+    // ---------- drawing ----------
+    function face(g, pts, fill) { g.beginPath(); g.moveTo(pts[0], pts[1]); for (var i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.closePath(); if (fill) { g.fillStyle = fill; g.fill(); } }
+    function drawCube(g, r, c, st, flash) {
+      var x = Math.round(cx(r, c)), y = Math.round(cy(r)), hw = CW / 2;
+      // left and right faces: dirt sides
+      g.save(); face(g, [x - hw, y, x, y + 10, x, y + 30, x - hw, y + 20]); g.clip(); g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x - hw, y, hw, 30); g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x - hw, y, hw, 30); g.restore();
+      g.save(); face(g, [x + hw, y, x, y + 10, x, y + 30, x + hw, y + 20]); g.clip(); g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, y, hw, 30); g.fillStyle = 'rgba(0,0,0,0.42)'; g.fillRect(x, y, hw, 30); g.restore();
+      // top face textured by its state
+      g.save(); face(g, [x, y - 10, x + hw, y, x, y + 10, x - hw, y]); g.clip(); g.drawImage(topImg(st), 0, 0, 16, 16, x - hw, y - 10, CW, 20);
+      if (flash) { g.fillStyle = 'rgba(255,255,255,0.45)'; g.fillRect(x - hw, y - 10, CW, 20); }
+      g.restore();
+      g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1; face(g, [x, y - 10, x + hw, y, x, y + 10, x - hw, y]); g.stroke();
+    }
+    function topImg(st) { var n = S.states[st]; return n === 'GOLD' ? tex.goldBlock.top : tex.blocks[T[n]].top; }
+    function drawLift(g, l) {
+      var x = cx(l.r, l.c), y = cy(l.r) + Math.sin(S.time * 3 + l.r) * 3;
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x - 10, y + 12, 20, 3);
+      g.drawImage(tex.blocks[T.CRYSTAL].top, 0, 0, 16, 16, x - 11, y - 6, 22, 10);
+      g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.sin(S.time * 8) * 0.2) + ')'; g.fillRect(x - 11, y - 6, 22, 2);
+    }
+    function drawEnemy(g, e) {
+      var q = pos(e), x = q.x, y = q.y + (e.fy || 0) - (e.drop > 0 ? e.drop * 200 : 0);
+      if (e.kind === 'ball' || e.kind === 'purple' || e.kind === 'crystal') {
+        var col = e.kind === 'ball' ? ['#d8322b', '#ff8a7a'] : e.kind === 'purple' ? ['#8a4bd8', '#c9a0ff'] : ['#4fc96a', '#b8ffc8'];
+        g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x - 6, y - 1, 12, 2);
+        g.fillStyle = col[0]; g.fillRect(x - 6, y - 12, 12, 11); g.fillStyle = col[1]; g.fillRect(x - 5, y - 11, 4, 3);
+        if (e.kind === 'crystal') g.drawImage(tex.crystal, x - 4, y - 12, 8, 9);
+      } else if (e.kind === 'ore') {
+        g.drawImage(tex.blocks[T[e.ore.toUpperCase()]].top, 0, 0, 16, 16, x - 7, y - 14, 14, 13);
+        g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x - 7, y - 14, 14, 1);
+      } else {
+        var k = e.kind === 'rumble' ? 'rumble' : 'frost', s = 18;
+        g.drawImage(tex.mons[S.freezeT > 0 ? 'fright' : k][Math.floor(S.time * 5) % 2], Math.round(x - s / 2), Math.round(y - s), s, s);
+        PCTex.drawEyes(g, Math.round(x - s / 2), Math.round(y - s), s / 16, e.r > e.fr ? 2 : 0, S.freezeT > 0);
+      }
+    }
+    function draw(g) {
+      var gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#0d1030'); gr.addColorStop(1, '#2a1846'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,0.6)'; for (var s = 0; s < 30; s++) g.fillRect((s * 97) % W, (s * 53) % 300 + 30, 1, 1);
+      var flashAll = S.clearT > 0 && Math.floor(S.time * 10) % 2;
+      for (var r = 0; r < ROWS; r++) for (var c = 0; c <= r; c++) drawCube(g, r, c, S.cubes[r][c], flashAll);
+      S.lifts.forEach(function (l) { drawLift(g, l); });
+      // actors
+      var p = S.p, hq = p.lift ? { x: p.lift.x0 + (cx(0, 0) - p.lift.x0) * p.lift.t, y: p.lift.y0 + (cy(0) - 40 - p.lift.y0) * Math.min(1, p.lift.t * 1.2) } : pos(p);
+      var actors = S.enemies.map(function (e) { return { y: pos(e).y + (e.fy || 0), f: function () { drawEnemy(g, e); } }; });
+      actors.push({ y: ctx.pet.y, f: function () { ctx.pet.draw(g, ctx.pet.x, ctx.pet.y, 16); } });
+      actors.push({ y: hq.y + 0.1, f: function () {
+        if (p.dead > 0 && !p.fall && Math.floor(S.time * 12) % 2) return;
+        var y = hq.y + (p.fy || 0);
+        if (p.lift) { g.drawImage(tex.blocks[T.CRYSTAL].top, 0, 0, 16, 16, hq.x - 11, y + 2, 22, 10); }
+        if (S.safeT > 0 && Math.floor(S.time * 10) % 2) return;
+        g.fillStyle = 'rgba(0,0,0,0.25)'; if (!p.fall && !p.lift) g.fillRect(hq.x - 7, cy(cell(p).r) - 1, 14, 2);
+        var spr = hero[p.face === 'up' ? 'up' : 'down'][p.t < 1 ? 1 : 0];
+        g.drawImage(spr, Math.round(hq.x - 10), Math.round(y - 19), 20, 20);
+      } });
+      actors.sort(function (a, b) { return a.y - b.y; }).forEach(function (a) { a.f(); });
+      // hint arrows around the hero on level 1
+      if (S.level === 1 && S.time < 12 && p.t >= 1 && !p.dead) {
+        g.fillStyle = 'rgba(255,230,128,' + (0.5 + Math.sin(S.time * 6) * 0.3) + ')';
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (d) { var x = hq.x + d[0] * 20, y = hq.y - 10 + d[1] * 16; g.fillRect(x - 2, y - 2, 4, 4); g.fillRect(x - 2 + d[0] * 3, y - 2 + d[1] * 3, 3, 3); });
+      }
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 26);
+      K.hearts(g, tex, S.lives, 6, 6);
+      PCTex.drawText(g, 'TURN TO', 104, 9, 1.5, '#fff', '#000');
+      g.drawImage(topImg(S.target), 0, 0, 16, 16, 172, 5, 16, 16);
+      if (S.flip) PCTex.drawText(g, 'FLIPS BACK!', 192, 9, 1, '#ff7a6a', '#000');
+      PCTex.drawText(g, 'LV ' + S.level, W - 54, 8, 2, '#ffe680', '#000');
+      if (S.freezeT > 0) PCTex.drawText(g, 'FREEZE ' + Math.ceil(S.freezeT), W / 2 - 30, 34, 2, '#7df9ff', '#000');
+      K.banner(g, W, H, S.msg, H - 110);
+    }
+    function input(e) {
+      if (e.type === 'touch' && e.phase === 'down') {
+        var q = S.p.lift ? null : pos(S.p); if (!q) return;
+        var d = hopDir(e.x - q.x, e.y - (q.y - 8)); tryHop(d[0], d[1]);
+      } else if (e.type === 'dir' && e.dir >= 0 && S.p.t >= 1) {
+        var hx = e.dx, hy = e.dy, dd;
+        if (Math.abs(hx) > 0.3 && Math.abs(hy) > 0.3) dd = hopDir(hx, hy); else dd = [[-1, 0], [-1, -1], [1, 0], [1, 1]][e.dir];
+        tryHop(dd[0], dd[1]);
+      }
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { tryHop: tryHop, cx: cx, cy: cy } };
+  }
+
+  return {
+    id: 'cubehop', name: 'Cube Hop', blurb: 'Hop down a block pyramid turning every top to gold. Dodge the slimes.',
+    view: { w: W, h: H }, music: 'crystal',
+    controls: { dpad: true, a: null, b: null },
+    thumb: function (g, w, h, tex, look) {
+      var T2 = window.PCWorld.TILE;
+      g.fillStyle = '#141236'; g.fillRect(0, 0, w, h);
+      for (var r = 0; r < 4; r++) for (var c = 0; c <= r; c++) {
+        var x = 32 + (c - r / 2) * 14, y = 8 + r * 10;
+        g.drawImage(tex.blocks[T2.DIRT].top, 0, 0, 16, 16, x - 7, y, 14, 9); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, y, 7, 9);
+        g.drawImage((r + c) % 2 ? tex.goldBlock.top : tex.blocks[T2.GRASS].top, 0, 0, 16, 16, x - 7, y - 3, 14, 5);
+      }
+      g.drawImage(PCTex.hero(look || PCTex.LOOK_DEFAULT).down[0], 26, 10, 11, 11);
+      g.fillStyle = '#d8322b'; g.fillRect(40, 27, 6, 5);
+    },
+    create: create
+  };
+})());
+
+
+/* Rumble Tower — Donkey Kong with blocks. Big Rumble rolls TNT kegs down sloping plank
+ * girders; jump them, climb the ladders, grab a pickaxe to smash kegs, and reach the top
+ * ledge where your wolf is waiting. */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 480;
+  var G = [ // girders bottom → top (6 = goal ledge)
+    { x0: 0, x1: 320, y0: 462, y1: 462, dir: -1 },
+    { x0: 0, x1: 296, y0: 396, y1: 408, dir: 1 },
+    { x0: 24, x1: 320, y0: 338, y1: 326, dir: -1 },
+    { x0: 0, x1: 296, y0: 258, y1: 270, dir: 1 },
+    { x0: 24, x1: 320, y0: 200, y1: 188, dir: -1 },
+    { x0: 0, x1: 296, y0: 120, y1: 132, dir: 1 },
+    { x0: 214, x1: 314, y0: 66, y1: 66, dir: 0, ledge: true }
+  ];
+  var RLEDGE = { x0: 0, x1: 100, y: 72 };
+  var LADDERS = [{ x: 250, lo: 0, hi: 1 }, { x: 70, lo: 1, hi: 2 }, { x: 172, lo: 1, hi: 2 }, { x: 262, lo: 2, hi: 3 }, { x: 60, lo: 3, hi: 4 }, { x: 150, lo: 3, hi: 4 }, { x: 250, lo: 4, hi: 5 }, { x: 276, lo: 5, hi: 6 }];
+  function gy(k, x) { var g = G[k]; x = Math.max(g.x0, Math.min(g.x1, x)); return g.y0 + (g.y1 - g.y0) * (x - g.x0) / (g.x1 - g.x0); }
+
+  function create(ctx) {
+    var tex = ctx.tex, T = window.PCWorld.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {};
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function reset() { S.level = 1; S.lives = 3; S.score = 0; S.time = 0; S.msg = null; newLevel(); }
+    function newLevel() {
+      var lv = S.level, OK = ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'];
+      S.picks = [{ x: 200, y: gy(1, 200) - 34, got: false }, { x: 110, y: gy(4, 110) - 34, got: false }];
+      S.ores = [[140, 0], [110, 2], [210, 3], [180, 5]].map(function (o, i) { return { x: o[0], g: o[1], kind: OK[Math.min(6, Math.floor(Math.random() * (2.5 + lv * 0.6)) + (i === 3 ? 1 : 0))], got: false }; });
+      S.bonus = 3000 + lv * 500; S.bonusT = 0; S.clearT = 0; K.clear();
+      spawn(); S.msg = { text: 'LEVEL ' + lv, sub: lv === 1 ? 'CLIMB TO THE TOP' : null, t: 2 }; ctx.A.play('ready');
+      S.cheerT = 4;
+    }
+    function spawn() {
+      S.p = { x: 30, g: 0, y: gy(0, 30), vy: 0, vx: 0, air: false, climb: null, face: 3, dead: 0, anim: 0, pickT: 0 };
+      S.barrels = []; S.throwT = 1.5; S.throwAnim = 0; S.safeT = 1.2;
+    }
+    function hitHero(b) {
+      var p = S.p;
+      if (p.pickT > 0) { smash(b); return; }
+      if (S.safeT > 0 || p.dead > 0) return;
+      p.dead = 1.4; S.lives--; ctx.fx('death'); ctx.buzz([60, 40, 80]); K.burst(p.x, p.y - 10, '#ffb37a', 14);
+    }
+    function smash(b) {
+      S.barrels.splice(S.barrels.indexOf(b), 1); addScore(300); K.pop(b.x, b.y - 14, '300', '#7df9ff'); K.burst(b.x, b.y, '#d8322b', 10); ctx.fx('boom'); ctx.buzz(20);
+      if (Math.random() < 0.3) { var k = ['coal', 'iron', 'gold'][Math.floor(Math.random() * 3)]; ctx.addOre(k, 1); K.pop(b.x, b.y - 26, '+1 ' + k.toUpperCase(), '#ffe680'); ctx.pet.bark(); }
+    }
+    function throwBarrel() {
+      var lv = S.level;
+      S.barrels.push({ x: 100, g: 5, y: gy(5, 100) - 6, state: 'roll', vy: 0, rot: 0, scored: false, sp: 62 + Math.min(60, lv * 7) + Math.random() * 10 });
+      ctx.fx('drop');
+    }
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.safeT > 0) S.safeT -= dt;
+      ctx.pet.sit(dt);
+      S.cheerT -= dt; if (S.cheerT <= 0) { S.cheerT = 9 + Math.random() * 5; ctx.pet.bark(Math.random() < 0.5 ? 'WOOF!' : 'YIP!'); }
+      if (S.clearT > 0) { S.clearT -= dt; if (S.clearT <= 0) { S.level++; newLevel(); } return; }
+      var p = S.p;
+      if (p.dead > 0) {
+        p.dead -= dt;
+        if (p.dead <= 0) { if (S.lives <= 0) { ctx.over({ lines: [['Level reached', S.level]] }); return; } spawn(); S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 }; }
+        return;
+      }
+      S.bonusT += dt; if (S.bonusT >= 2) { S.bonusT = 0; S.bonus = Math.max(0, S.bonus - 100); }
+      if (p.pickT > 0) p.pickT -= dt;
+      var hd = ctx.held.dir, WALK = 72;
+      if (p.climb) {
+        var l = p.climb, yb = gy(l.lo, l.x), yt = l.hi === 6 ? G[6].y0 : gy(l.hi, l.x);
+        if (hd === 0) { p.y -= 52 * dt; p.anim += dt * 6; }
+        else if (hd === 2) { p.y += 52 * dt; p.anim += dt * 6; }
+        if (p.y <= yt) { p.y = yt; p.g = l.hi; p.climb = null; if (p.g === 6) reachTop(); }
+        else if (p.y >= yb) { p.y = yb; p.g = l.lo; p.climb = null; }
+      } else if (p.air) {
+        p.vy += 620 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+        var gg = G[p.g]; p.x = Math.max(gg.x0 + 6, Math.min(gg.x1 - 6, p.x));
+        if (p.vy > 0 && p.y >= gy(p.g, p.x)) { p.y = gy(p.g, p.x); p.air = false; p.vy = 0; }
+      } else {
+        var g = G[p.g];
+        if (hd === 1 || hd === 3) { p.vx = (hd === 3 ? 1 : -1) * WALK; p.face = hd; p.x += p.vx * dt; p.anim += dt * 8; }
+        else p.vx = 0;
+        p.x = Math.max(g.x0 + 6, Math.min(g.x1 - 6, p.x)); p.y = g.ledge ? g.y0 : gy(p.g, p.x);
+        if (hd === 0) { var up = LADDERS.filter(function (l) { return l.lo === p.g && Math.abs(l.x - p.x) < 9; })[0]; if (up) { p.climb = up; p.x = up.x; } }
+        else if (hd === 2) { var dn = LADDERS.filter(function (l) { return l.hi === p.g && Math.abs(l.x - p.x) < 9; })[0]; if (dn) { p.climb = dn; p.x = dn.x; p.y += 2; } }
+      }
+      // ores
+      S.ores.forEach(function (o) { if (o.got) return; var oy = gy(o.g, o.x) - 9; if (Math.abs(o.x - p.x) < 11 && Math.abs(oy - (p.y - 9)) < 14) { o.got = true; ctx.addOre(o.kind, 1); addScore(200); K.pop(o.x, oy - 12, '+1 ' + o.kind.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: o.kind }); ctx.buzz(15); ctx.pet.bark(); } });
+      // pickaxes
+      S.picks.forEach(function (k) { if (!k.got && Math.abs(k.x - p.x) < 12 && Math.abs(k.y - (p.y - 12)) < 16) { k.got = true; p.pickT = 8; ctx.fx('unlock'); K.pop(k.x, k.y - 10, 'SMASH TIME!', '#7df9ff'); } });
+      // Rumble throws
+      S.throwT -= dt; if (S.throwAnim > 0) S.throwAnim -= dt;
+      if (S.throwT <= 0) { S.throwT = Math.max(1.3, 3 - S.level * 0.22) * (0.75 + Math.random() * 0.5); S.throwAnim = 0.4; setTimeout0(throwBarrel); }
+      // barrels
+      S.barrels.slice().forEach(function (b) {
+        b.rot += dt * (b.state === 'ladder' ? 0 : 10) * (G[b.g] ? G[b.g].dir || 1 : 1);
+        if (b.state === 'roll') {
+          var g = G[b.g], nx = b.x + g.dir * b.sp * dt;
+          // take a ladder down?
+          LADDERS.forEach(function (l) { if (l.hi === b.g && l.hi < 6 && b.state === 'roll' && (b.x - l.x) * (nx - l.x) <= 0 && !b['L' + l.x] ) { b['L' + l.x] = 1; var bias = S.p.g < b.g ? 0.2 : 0; if (Math.random() < 0.18 + Math.min(0.2, S.level * 0.03) + bias) { b.state = 'ladder'; b.x = l.x; b.lad = l; } } });
+          if (b.state === 'roll') {
+            b.x = nx; b.y = gy(b.g, b.x) - 6;
+            if (b.g === 0 && b.x < -10) { S.barrels.splice(S.barrels.indexOf(b), 1); return; }
+            if (b.g > 0 && (b.x < g.x0 - 2 || b.x > g.x1 + 2)) { b.state = 'fall'; b.vy = 20; }
+          }
+        } else if (b.state === 'ladder') {
+          b.y += 70 * dt;
+          if (b.y >= gy(b.lad.lo, b.x) - 6) { b.g = b.lad.lo; b.state = 'roll'; b.y = gy(b.g, b.x) - 6; }
+        } else if (b.state === 'fall') {
+          b.vy += 600 * dt; b.y += b.vy * dt; b.x += (G[b.g].dir || 0) * 30 * dt;
+          if (b.y >= gy(b.g - 1, b.x) - 6) { b.g--; b.state = 'roll'; b.y = gy(b.g, b.x) - 6; ctx.fx('drop'); }
+        }
+        // hero contact / jump-over scoring
+        var hx = p.x, hyc = p.y - 10;
+        if (Math.hypot(b.x - hx, b.y - hyc) < 12) { hitHero(b); return; }
+        if (!b.scored && p.air && Math.abs(b.x - hx) < 9 && p.y < b.y - 4 && b.y - p.y < 40) { b.scored = true; addScore(100); K.pop(hx, p.y - 26, '100', '#fff'); ctx.fx('gem'); }
+      });
+    }
+    function setTimeout0(f) { f(); }
+    function reachTop() {
+      var bonus = S.bonus; addScore(bonus + 500 * S.level); K.pop(W - 60, 40, 'BONUS ' + bonus, '#ffe680');
+      ctx.addOre('coal', 1 + Math.floor(S.level / 2)); if (S.level % 2 === 0) ctx.addOre('iron', 1);
+      ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop(); S.clearT = 2.2; S.barrels = [];
+    }
+    function jump() {
+      var p = S.p; if (p.dead > 0 || p.air || p.climb || S.clearT > 0) return;
+      p.air = true; p.vy = -205; var hd = ctx.held.dir; p.vx = hd === 1 ? -72 : hd === 3 ? 72 : 0; ctx.fx('hop');
+    }
+
+    // ---------- drawing ----------
+    var bg = null;
+    function drawBg(g) {
+      if (bg) return g.drawImage(bg, 0, 0);
+      bg = document.createElement('canvas'); bg.width = W; bg.height = H; var b = bg.getContext('2d'); b.imageSmoothingEnabled = false;
+      var gr = b.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#0b0a24'); gr.addColorStop(1, '#241634'); b.fillStyle = gr; b.fillRect(0, 0, W, H);
+      var r = window.PCWorld.rng(5); for (var i = 0; i < 50; i++) { b.fillStyle = r() < 0.3 ? '#fff' : '#8f96d8'; b.fillRect(Math.floor(r() * W), Math.floor(r() * H), 1, 1); }
+      // ladders
+      LADDERS.forEach(function (l) {
+        var yb = gy(l.lo, l.x), yt = l.hi === 6 ? G[6].y0 : gy(l.hi, l.x);
+        b.fillStyle = '#8a6331'; b.fillRect(l.x - 7, yt, 2, yb - yt); b.fillRect(l.x + 5, yt, 2, yb - yt);
+        for (var y = yt + 4; y < yb; y += 7) { b.fillStyle = '#b8894d'; b.fillRect(l.x - 5, y, 10, 2); }
+      });
+      // girders
+      G.forEach(function (gd, k) {
+        for (var x = gd.x0; x < gd.x1; x += 16) {
+          var w = Math.min(16, gd.x1 - x), y = Math.round(gy(k, x + w / 2));
+          b.drawImage(tex.blocks[T.PLANKS].top, 0, 0, 16, 16, x, y, w, 8);
+          b.fillStyle = 'rgba(255,255,255,0.18)'; b.fillRect(x, y, w, 1); b.fillStyle = 'rgba(0,0,0,0.45)'; b.fillRect(x, y + 7, w, 1);
+        }
+      });
+      for (var x2 = RLEDGE.x0; x2 < RLEDGE.x1; x2 += 16) { b.drawImage(tex.blocks[T.COBBLE].top, 0, 0, 16, 16, x2, RLEDGE.y, 16, 8); }
+      // keg pile beside Rumble
+      [[6, 52], [18, 52], [12, 40]].forEach(function (q) { b.drawImage(tex.tnt[0], q[0], q[1], 14, 14); });
+      g.drawImage(bg, 0, 0);
+    }
+    function draw(g) {
+      drawBg(g);
+      // goal: the wolf (or a diamond block) on the top ledge
+      if (ctx.pet.on) ctx.pet.draw(g, 296, G[6].y0, 22, 1);
+      else { g.drawImage(tex.blocks[T.DIAMOND].top, 0, 0, 16, 16, 286, G[6].y0 - 18, 18, 18); }
+      g.fillStyle = 'rgba(255,230,128,' + (0.4 + Math.sin(S.time * 4) * 0.3) + ')'; PCTex.drawText(g, 'GOAL', 240, 44, 1.5, '#ffe680', '#000');
+      // Rumble
+      var rs = 38, rx = 46, ry = RLEDGE.y - rs + (S.throwAnim > 0 ? -6 : Math.abs(Math.sin(S.time * 3)) * -2);
+      g.drawImage(tex.mons.rumble[Math.floor(S.time * 4) % 2], rx, ry, rs, rs); PCTex.drawEyes(g, rx, ry, rs / 16, 3, false);
+      if (S.throwAnim > 0) g.drawImage(tex.tnt[1], rx + 11, ry - 8, 16, 16);
+      // ores & pickaxes
+      S.ores.forEach(function (o) { if (!o.got) g.drawImage(tex.ores[o.kind], o.x - 7, gy(o.g, o.x) - 16 + Math.sin(S.time * 4 + o.x) * 1.5, 14, 14); });
+      var pk = tex.picks[Math.min(4, ctx.save.up.pick || 0)];
+      S.picks.forEach(function (k) { if (!k.got) g.drawImage(pk, k.x - 8, k.y - 8 + Math.sin(S.time * 5) * 2, 16, 16); });
+      // barrels
+      S.barrels.forEach(function (b) { g.save(); g.translate(Math.round(b.x), Math.round(b.y)); g.rotate(b.state === 'ladder' ? 0 : Math.round(b.rot * 2) / 2 * Math.PI / 2); g.drawImage(tex.tnt[0], -7, -7, 14, 14); g.restore(); });
+      // hero
+      var p = S.p;
+      if (p.dead > 0) { g.save(); g.translate(p.x, p.y - 10); g.rotate((1.4 - p.dead) * 8); g.drawImage(hero.down[0], -10, -10, 20, 20); g.restore(); }
+      else if (!(S.safeT > 0 && Math.floor(S.time * 10) % 2)) {
+        var view = p.climb ? 'up' : ['up', 'left', 'down', 'right'][p.face], moving = p.climb ? (ctx.held.dir === 0 || ctx.held.dir === 2) : p.vx !== 0;
+        var fr = p.air ? 1 : moving ? 1 + Math.floor(p.anim) % 2 : 0;
+        g.drawImage(hero[view][fr], Math.round(p.x - 10), Math.round(p.y - 20), 20, 20);
+        if (p.pickT > 0) { var sw = Math.sin(S.time * 18) > 0; g.save(); g.translate(p.x + (p.face === 1 ? -6 : 6), p.y - 14); g.rotate(sw ? -0.8 : 0.4); g.drawImage(pk, -6, -12, 12, 12); g.restore(); }
+      }
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 24);
+      K.hearts(g, tex, S.lives, 6, 5);
+      PCTex.drawText(g, 'BONUS ' + S.bonus, 110, 7, 1.5, '#7df9ff', '#000');
+      PCTex.drawText(g, 'LV ' + S.level, W - 54, 6, 2, '#ffe680', '#000');
+      if (p.pickT > 0) PCTex.drawText(g, 'SMASH ' + Math.ceil(p.pickT), 110, 30, 1.5, '#ffe680', '#000');
+      K.banner(g, W, H, S.clearT > 0 ? { text: 'YOU MADE IT!' } : S.msg, 200);
+    }
+    function input(e) {
+      if (e.type === 'a' && e.down) jump();
+      else if (e.type === 'touch' && e.phase === 'down') jump();
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { gy: gy, G: G, LADDERS: LADDERS, jump: jump } };
+  }
+
+  return {
+    id: 'tower', name: 'Rumble Tower', blurb: 'Rumble rolls TNT kegs down the girders. Jump them and climb to your wolf.',
+    view: { w: W, h: H }, music: 'lava',
+    controls: { dpad: true, a: 'JUMP', b: null },
+    thumb: function (g, w, h, tex, look) {
+      var T2 = window.PCWorld.TILE;
+      g.fillStyle = '#120f2a'; g.fillRect(0, 0, w, h);
+      [[4, 44, 60, 44], [4, 30, 56, 34], [8, 22, 60, 18]].forEach(function (s) { for (var x = s[0]; x < s[2]; x += 8) { var y = s[1] + (s[3] - s[1]) * (x - s[0]) / (s[2] - s[0]); g.drawImage(tex.blocks[T2.PLANKS].top, 0, 0, 16, 16, x, Math.round(y), 8, 3); } });
+      g.fillStyle = '#8a6331'; g.fillRect(44, 34, 1, 10); g.fillRect(49, 34, 1, 10); g.fillRect(18, 21, 1, 11); g.fillRect(23, 21, 1, 11);
+      g.drawImage(tex.mons.rumble[0], 4, 4, 16, 16); PCTex.drawEyes(g, 4, 4, 1, 3, false);
+      g.drawImage(tex.tnt[0], 34, 26, 7, 7); g.drawImage(tex.tnt[0], 22, 38, 7, 7);
+      g.drawImage(PCTex.hero(look || PCTex.LOOK_DEFAULT).right[1], 8, 34, 10, 10);
+      g.drawImage(PCTex.wolf('#d8322b').left[3], 50, 4, 12, 12);
+    },
+    create: create
+  };
+})());
+
+
+/* Cave Worm — Centipede in a mossy cave. A long cave worm winds down through the blocks;
+ * every segment you shoot turns into a new block and splits the worm. Blast mossy ore blocks
+ * for ore, and look out for the jumping cave spider in your zone. */
+PCCab.register((function () {
+  'use strict';
+  var CS = 16, COLS = 20, ROWS = 28, OY = 24, W = COLS * CS, H = OY + ROWS * CS, ZONE = 22, HP = 4;
+
+  function create(ctx) {
+    var tex = ctx.tex, Wd = window.PCWorld, T = Wd.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {}, bg = null;
+    function idx(x, y) { return y * COLS + x; }
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function cxp(x) { return x * CS + CS / 2; }
+    function cyp(y) { return OY + y * CS + CS / 2; }
+
+    function reset() {
+      S.wave = 1; S.lives = 3; S.score = 0; S.time = 0; S.msg = null;
+      S.hp = new Uint8Array(COLS * ROWS); S.ore = {};
+      var r = Wd.rng(4242);
+      for (var i = 0; i < 38; i++) { var x = Math.floor(r() * COLS), y = 1 + Math.floor(r() * (ZONE - 1)); S.hp[idx(x, y)] = HP; if (r() < 0.16) S.ore[idx(x, y)] = pickOre(); }
+      newWave(); spawnHero();
+      S.hintT = 1.8;
+    }
+    function pickOre() { return ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (2.5 + S.wave * 0.6)))]; }
+    function newWave(count) {
+      var n = count || Math.min(18, 9 + S.wave);
+      S.segs = [];
+      for (var i = 0; i < n; i++) S.segs.push({ x: n - 1 - i, y: 0, px: n - 1 - i, py: 0, dir: 1, vdir: 1, head: i === 0 });
+      S.stepGap = Math.max(0.045, 0.1 - S.wave * 0.006); S.stepT = 0;
+      if (!count) { S.msg = { text: 'WAVE ' + S.wave, t: 1.5 }; ctx.A.play('ready'); }
+    }
+    function spawnHero() { S.p = { x: W / 2, y: cyp(ROWS - 2), dead: 0, anim: 0 }; S.shot = null; S.spider = null; S.spiderT = 5; S.safeT = 1.5; ctx.pet.reset(S.p.x - 20, S.p.y, 3); }
+
+    function blocked(x, y) { return x < 0 || x >= COLS || (y >= 0 && y < ROWS && S.hp[idx(x, y)] > 0); }
+    function stepWorm() {
+      S.segs.forEach(function (s) {
+        s.px = s.x; s.py = s.y;
+        var nx = s.x + s.dir;
+        if (blocked(nx, s.y)) {
+          var ny = s.y + s.vdir;
+          if (ny >= ROWS) { s.vdir = -1; ny = s.y - 1; }
+          else if (ny < ZONE && s.vdir < 0) { s.vdir = 1; ny = s.y + 1; }
+          s.y = ny; s.dir = -s.dir;
+        } else s.x = nx;
+      });
+    }
+    function killSeg(i) {
+      var s = S.segs[i], pts = s.head ? 100 : 10;
+      addScore(pts); K.pop(cxp(s.x), cyp(s.y) - 8, pts, s.head ? '#7df9ff' : '#fff'); K.burst(cxp(s.x), cyp(s.y), '#e36b9a', 8); ctx.fx('bonk');
+      if (s.y >= 0 && s.y < ROWS && s.x >= 0 && s.x < COLS && s.y < ROWS - 1) { S.hp[idx(s.x, s.y)] = HP; if (Math.random() < 0.08) S.ore[idx(s.x, s.y)] = pickOre(); }
+      if (S.segs[i + 1]) S.segs[i + 1].head = true;
+      S.segs.splice(i, 1);
+      if (!S.segs.length) {
+        addScore(500 * S.wave); ctx.addOre('coal', 1 + Math.floor(S.wave / 3)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
+        S.wave++; newWave();
+      }
+    }
+    function hitBlock(x, y) {
+      var i = idx(x, y); S.hp[i]--; ctx.fx('hit', { tile: T.STONE }); K.burst(cxp(x), cyp(y), '#6a8a5a', 3, 80);
+      if (S.hp[i] <= 0) {
+        addScore(5);
+        if (S.ore[i]) { var k = S.ore[i]; delete S.ore[i]; ctx.addOre(k, 1); addScore(100); K.pop(cxp(x), cyp(y) - 10, '+1 ' + k.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: k }); ctx.buzz(15); ctx.pet.bark(); }
+      }
+    }
+    function fire() { var p = S.p; if (S.shot || p.dead > 0) return; S.shot = { x: p.x, y: p.y - 12 }; ctx.fx('shoot'); }
+    function die() {
+      var p = S.p; if (p.dead > 0 || S.safeT > 0) return;
+      p.dead = 1.5; S.lives--; ctx.fx('death'); ctx.buzz([60, 40, 80]); K.burst(p.x, p.y, '#ffb37a', 16);
+    }
+
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.hintT > 0) { S.hintT -= dt; if (S.hintT <= 0) S.msg = { text: 'SHOOT THE WORM!', t: 2.2 }; }
+      if (S.safeT > 0) S.safeT -= dt;
+      var p = S.p;
+      if (p.dead > 0) {
+        p.dead -= dt; ctx.pet.sit(dt);
+        if (p.dead <= 0) {
+          if (S.lives <= 0) { ctx.over({ lines: [['Wave reached', S.wave]] }); return; }
+          var left = S.segs.length; newWave(left); spawnHero(); S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 };
+        }
+        return;
+      }
+      // hero movement (analog joystick, keys, or relative drag)
+      var mx = 0, my = 0, SP = 190;
+      if (ctx.held.dir >= 0) { mx = ctx.held.dx * SP * dt; my = ctx.held.dy * SP * dt; p.anim += dt * 8; }
+      if (S.drag) { mx += S.drag.dx; my += S.drag.dy; S.drag.dx = S.drag.dy = 0; if (mx || my) p.anim += dt * 8; }
+      var nx = Math.max(8, Math.min(W - 8, p.x + mx)), ny = Math.max(OY + ZONE * CS + 8, Math.min(H - 8, p.y + my));
+      if (!blocked(Math.floor(nx / CS), Math.floor((p.y - OY) / CS))) p.x = nx;
+      if (!blocked(Math.floor(p.x / CS), Math.floor((ny - OY) / CS))) p.y = ny;
+      if (ctx.held.a || S.drag) fire();
+      ctx.pet.follow(p.x, p.y, dt, { dist: 24, snap: 200, speed: 200 });
+      // shot
+      if (S.shot) {
+        var steps = 4;
+        for (var k = 0; k < steps && S.shot; k++) {
+          S.shot.y -= 760 * dt / steps;
+          var sx = Math.floor(S.shot.x / CS), sy = Math.floor((S.shot.y - OY) / CS);
+          if (S.shot.y < OY) { S.shot = null; break; }
+          if (sy >= 0 && S.hp[idx(sx, sy)] > 0) { hitBlock(sx, sy); S.shot = null; break; }
+          for (var i = 0; i < S.segs.length; i++) { var s = S.segs[i]; if (s.x === sx && s.y === sy) { killSeg(i); S.shot = null; break; } }
+          if (S.shot && S.spider && Math.abs(S.spider.x - S.shot.x) < 10 && Math.abs(S.spider.y - S.shot.y) < 9) {
+            var d = Math.abs(S.spider.y - p.y), pts = d < 40 ? 900 : d < 80 ? 600 : 300;
+            addScore(pts); K.pop(S.spider.x, S.spider.y - 10, pts, '#7df9ff'); K.burst(S.spider.x, S.spider.y, '#333', 12); ctx.fx('boom'); S.spider = null; S.spiderT = 5 + Math.random() * 4; S.shot = null;
+          }
+        }
+      }
+      // worm
+      S.stepT += dt;
+      while (S.stepT >= S.stepGap) { S.stepT -= S.stepGap; stepWorm(); }
+      var f = S.stepT / S.stepGap;
+      S.segs.forEach(function (s) { var X = cxp(s.px + (s.x - s.px) * f), Y = cyp(s.py + (s.y - s.py) * f); if (Math.abs(X - p.x) < 12 && Math.abs(Y - p.y) < 12) die(); });
+      // spider
+      if (!S.spider) { S.spiderT -= dt; if (S.spiderT <= 0) { var fromL = Math.random() < 0.5; S.spider = { x: fromL ? -10 : W + 10, y: OY + (ZONE + 2) * CS, vx: (fromL ? 1 : -1) * (55 + S.wave * 4), vy: 90, anim: 0 }; } }
+      else {
+        var sp = S.spider; sp.anim += dt * 10; sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+        if (sp.y < OY + (ZONE - 2) * CS) { sp.y = OY + (ZONE - 2) * CS; sp.vy = Math.abs(sp.vy); }
+        if (sp.y > H - 10) { sp.y = H - 10; sp.vy = -Math.abs(sp.vy); }
+        if (Math.random() < dt * 1.2) sp.vy = -sp.vy;
+        var bx = Math.floor(sp.x / CS), by = Math.floor((sp.y - OY) / CS);
+        if (bx >= 0 && bx < COLS && by >= 0 && by < ROWS && S.hp[idx(bx, by)] > 0 && Math.random() < dt * 3) { S.hp[idx(bx, by)] = 0; delete S.ore[idx(bx, by)]; }
+        if (sp.x < -20 || sp.x > W + 20) { S.spider = null; S.spiderT = 5 + Math.random() * 5; }
+        else if (Math.abs(sp.x - p.x) < 12 && Math.abs(sp.y - p.y) < 12) die();
+      }
+    }
+
+    function drawBg(g) {
+      if (!bg) {
+        bg = document.createElement('canvas'); bg.width = W; bg.height = H; var b = bg.getContext('2d'); b.imageSmoothingEnabled = false;
+        for (var y = 0; y < H; y += 16) for (var x = 0; x < W; x += 16) b.drawImage(tex.floors.caves[((x + y) / 16) % 3], 0, 0, 16, 16, x, y, 16, 16);
+        b.fillStyle = 'rgba(6,4,12,0.55)'; b.fillRect(0, 0, W, H);
+        b.fillStyle = 'rgba(94,240,168,0.06)'; b.fillRect(0, OY + ZONE * CS, W, H - OY - ZONE * CS);
+        b.fillStyle = 'rgba(94,240,168,0.25)'; for (var x2 = 0; x2 < W; x2 += 8) b.fillRect(x2, OY + ZONE * CS, 4, 1);
+      }
+      g.drawImage(bg, 0, 0);
+    }
+    function draw(g) {
+      drawBg(g);
+      // blocks
+      for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
+        var hp = S.hp[idx(x, y)]; if (!hp) continue;
+        var X = x * CS, Y = OY + y * CS, o = S.ore[idx(x, y)];
+        g.drawImage(tex.blocks[o ? T[o.toUpperCase()] : T.MOSS].top, 0, 0, 16, 16, X + 1, Y + 1, CS - 2, CS - 2);
+        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(X + 1, Y + CS - 3, CS - 2, 2);
+        if (hp < HP) g.drawImage(tex.cracks[Math.min(4, (HP - hp) + 1)], 0, 0, 16, 16, X + 1, Y + 1, CS - 2, CS - 2);
+      }
+      // worm
+      var f = Math.min(1, S.stepT / S.stepGap);
+      for (var i = S.segs.length - 1; i >= 0; i--) {
+        var s = S.segs[i], X2 = Math.round(cxp(s.px + (s.x - s.px) * f)), Y2 = Math.round(cyp(s.py + (s.y - s.py) * f)), bob = Math.sin(S.time * 14 + i) * 1;
+        g.fillStyle = s.head ? '#d84b7a' : (i % 2 ? '#e87aa0' : '#d9678f'); g.fillRect(X2 - 7, Y2 - 7 + bob, 14, 14);
+        g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(X2 - 7, Y2 - 7 + bob, 14, 3);
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X2 - 7, Y2 + 5 + bob, 14, 2);
+        if (s.head) { var ex = s.dir * 2; g.fillStyle = '#fff'; g.fillRect(X2 - 5 + ex, Y2 - 4, 4, 4); g.fillRect(X2 + 1 + ex, Y2 - 4, 4, 4); g.fillStyle = '#1b1822'; g.fillRect(X2 - 4 + ex + s.dir, Y2 - 3, 2, 2); g.fillRect(X2 + 2 + ex + s.dir, Y2 - 3, 2, 2); g.fillStyle = '#ffd23d'; g.fillRect(X2 - 7 + (s.dir > 0 ? 12 : 0), Y2 - 9, 2, 3); }
+      }
+      // spider
+      if (S.spider) {
+        var sp = S.spider, lg = Math.floor(sp.anim) % 2 ? 2 : -2;
+        g.fillStyle = '#1b1822'; for (var l = -1; l <= 1; l += 2) { g.fillRect(sp.x - 13, sp.y + l * 3 + lg, 7, 2); g.fillRect(sp.x + 6, sp.y + l * 3 - lg, 7, 2); }
+        g.drawImage(tex.mons.sly[0], sp.x - 8, sp.y - 8, 16, 16); PCTex.drawEyes(g, sp.x - 8, sp.y - 8, 1, sp.vx > 0 ? 3 : 1, false);
+      }
+      // shot
+      if (S.shot) { g.fillStyle = '#c9a15a'; g.fillRect(S.shot.x - 1, S.shot.y, 2, 10); g.fillStyle = '#e8e8ee'; g.fillRect(S.shot.x - 2, S.shot.y - 2, 4, 3); }
+      // wolf + hero
+      ctx.pet.draw(g, ctx.pet.x, ctx.pet.y + 8, 16);
+      var p = S.p;
+      if (p.dead > 0) { g.save(); g.translate(p.x, p.y); g.rotate((1.5 - p.dead) * 8); var sc = Math.max(0, p.dead / 1.5); g.scale(sc, sc); g.drawImage(hero.up[0], -9, -9, 18, 18); g.restore(); }
+      else if (!(S.safeT > 0 && Math.floor(S.time * 10) % 2)) { g.drawImage(hero.up[Math.floor(p.anim) % 3 === 0 ? 0 : 1 + Math.floor(p.anim) % 2], Math.round(p.x - 9), Math.round(p.y - 10), 18, 18); g.fillStyle = '#6b4f2c'; g.fillRect(p.x - 6, p.y - 14, 12, 2); }
+      K.draw(g);
+      // hud
+      g.fillStyle = '#120e18'; g.fillRect(0, 0, W, OY);
+      K.hearts(g, tex, S.lives, 6, 5);
+      PCTex.drawText(g, 'WAVE ' + S.wave, W - 74, 6, 2, '#ffe680', '#000');
+      PCTex.drawText(g, 'WORM ' + S.segs.length, 110, 6, 2, '#e87aa0', '#000');
+      K.banner(g, W, H, S.msg);
+    }
+    function input(e) {
+      if (e.type === 'a' && e.down) fire();
+      else if (e.type === 'touch') {
+        if (e.phase === 'down') { S.drag = { lx: e.x, ly: e.y, dx: 0, dy: 0 }; fire(); }
+        else if (e.phase === 'move' && S.drag) { S.drag.dx += (e.x - S.drag.lx) * 1.3; S.drag.dy += (e.y - S.drag.ly) * 1.3; S.drag.lx = e.x; S.drag.ly = e.y; }
+        else if (e.phase === 'up') S.drag = null;
+      }
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { killSeg: killSeg, stepWorm: stepWorm, fire: fire } };
+  }
+
+  return {
+    id: 'caveworm', name: 'Cave Worm', blurb: 'A long cave worm winds down through the blocks. Shoot it apart before it reaches you.',
+    view: { w: W, h: H }, music: 'caves',
+    controls: { dpad: true, a: 'SHOOT', b: null },
+    thumb: function (g, w, h, tex, look) {
+      var T2 = window.PCWorld.TILE;
+      g.fillStyle = '#15121c'; g.fillRect(0, 0, w, h);
+      [[6, 8], [40, 6], [22, 20], [52, 24], [10, 30], [34, 32]].forEach(function (q, i) { g.drawImage(tex.blocks[i === 3 ? T2.GOLD : T2.MOSS].top, 0, 0, 16, 16, q[0], q[1], 7, 7); });
+      for (var i = 0; i < 6; i++) { g.fillStyle = i === 0 ? '#d84b7a' : '#e87aa0'; g.fillRect(44 - i * 6, 14, 6, 6); }
+      g.fillStyle = '#fff'; g.fillRect(46, 15, 2, 2);
+      g.drawImage(PCTex.hero(look || PCTex.LOOK_DEFAULT).up[0], 28, 36, 10, 10); g.fillStyle = '#e8e8ee'; g.fillRect(32, 26, 1, 6);
+    },
+    create: create
+  };
+})());
+
+
+/* Sky Guard — Missile Command. Fireballs rain on the village; tap the sky to launch firework
+ * rockets from the three towers and burst them in mid-air. Grey ore meteors drop ore when
+ * you pop them. Keep at least one house standing. */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 440, GROUND = 400, LAUNCH_Y = 380;
+  var TOWERS = [20, 160, 300], HOUSES = [52, 88, 124, 196, 232, 268];
+
+  function create(ctx) {
+    var tex = ctx.tex, T = window.PCWorld.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {}, bg = null;
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function reset() {
+      S.wave = 1; S.score = 0; S.time = 0; S.msg = null;
+      S.houses = HOUSES.map(function (x) { return { x: x, alive: true }; });
+      S.cross = { x: W / 2, y: 200 };
+      newWave();
+    }
+    function newWave() {
+      S.towers = TOWERS.map(function (x) { return { x: x, ammo: 10, alive: true }; });
+      S.rockets = []; S.booms = []; S.fire = []; S.toSpawn = 10 + S.wave * 2; S.spawnT = 1.4; S.endT = 0; K.clear();
+      S.msg = { text: 'WAVE ' + S.wave, sub: S.wave === 1 ? 'TAP THE SKY TO FIRE' : null, t: 2 }; ctx.A.play('ready');
+      ctx.pet.reset(TOWERS[1] - 16, GROUND, 3);
+    }
+    function launch(x, y) {
+      if (S.endT > 0) return;
+      y = Math.min(y, LAUNCH_Y - 20);
+      var best = null, bd = 1e9;
+      S.towers.forEach(function (t) { if (t.alive && t.ammo > 0 && Math.abs(t.x - x) < bd) { bd = Math.abs(t.x - x); best = t; } });
+      if (!best) { ctx.fx('nope'); return; }
+      best.ammo--; S.lastTower = best.x;
+      var sp = best.x === TOWERS[1] ? 520 : 400, d = Math.hypot(x - best.x, y - LAUNCH_Y);
+      S.rockets.push({ x0: best.x, y0: LAUNCH_Y, x: best.x, y: LAUNCH_Y, tx: x, ty: y, t: 0, dur: d / sp });
+      ctx.fx('shoot');
+    }
+    function boom(x, y, max, chain) {
+      S.booms.push({ x: x, y: y, r: 0, t: 0, max: max || 28, hue: Math.floor(Math.random() * 4) });
+      ctx.fx(chain ? 'bonk' : 'boom');
+    }
+    function spawnFire(from) {
+      var targets = S.houses.filter(function (h) { return h.alive; }).map(function (h) { return h.x; }).concat(S.towers.filter(function (t) { return t.alive; }).map(function (t) { return t.x; }));
+      if (!targets.length) return;
+      var tx = targets[Math.floor(Math.random() * targets.length)] + (Math.random() - 0.5) * 8;
+      var ore = !from && Math.random() < 0.16, x0 = from ? from.x : 10 + Math.random() * (W - 20), y0 = from ? from.y : 26;
+      var sp = (22 + S.wave * 3.5) * (ore ? 0.8 : 1) * (0.85 + Math.random() * 0.3);
+      S.fire.push({ x0: x0, y0: y0, x: x0, y: y0, tx: tx, ty: GROUND, sp: sp, ore: ore ? ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (2.5 + S.wave * 0.6)))] : null, split: !from && !ore && S.wave >= 2 && Math.random() < 0.18 + S.wave * 0.02 ? 140 + Math.random() * 120 : 0 });
+    }
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      // crosshair via keys / joystick
+      if (ctx.held.dir >= 0) { S.cross.x = Math.max(6, Math.min(W - 6, S.cross.x + ctx.held.dx * 220 * dt)); S.cross.y = Math.max(30, Math.min(LAUNCH_Y - 20, S.cross.y + ctx.held.dy * 220 * dt)); }
+      ctx.pet.follow(S.lastTower != null ? S.lastTower - 16 : TOWERS[1] - 16, GROUND, dt, { dist: 4, lockY: GROUND, snap: 999, speed: 150 });
+      // spawn
+      if (S.toSpawn > 0) { S.spawnT -= dt; if (S.spawnT <= 0) { S.spawnT = Math.max(0.45, 1.5 - S.wave * 0.08) * (0.6 + Math.random() * 0.8); S.toSpawn--; spawnFire(); if (S.wave >= 3 && Math.random() < 0.3 && S.toSpawn > 0) { S.toSpawn--; spawnFire(); } } }
+      // rockets
+      S.rockets = S.rockets.filter(function (r) { r.t += dt; var f = Math.min(1, r.t / r.dur); r.x = r.x0 + (r.tx - r.x0) * f; r.y = r.y0 + (r.ty - r.y0) * f; if (f >= 1) { boom(r.tx, r.ty); return false; } return true; });
+      // explosions
+      S.booms = S.booms.filter(function (b) { b.t += dt; b.r = b.t < 0.35 ? b.max * b.t / 0.35 : b.t < 0.65 ? b.max : b.max * Math.max(0, 1 - (b.t - 0.65) / 0.35); return b.t < 1; });
+      // fireballs
+      S.fire = S.fire.filter(function (f) {
+        var d = Math.hypot(f.tx - f.x0, f.ty - f.y0); f.x += (f.tx - f.x0) / d * f.sp * dt; f.y += (f.ty - f.y0) / d * f.sp * dt;
+        for (var i = 0; i < S.booms.length; i++) { var b = S.booms[i]; if (Math.hypot(b.x - f.x, b.y - f.y) < b.r + 3) {
+          var pts = f.ore ? 50 : 25; addScore(pts * S.wave); boom(f.x, f.y, 20, true); K.pop(f.x, f.y - 10, pts * S.wave, '#fff');
+          if (f.ore) { ctx.addOre(f.ore, 1); K.pop(f.x, f.y - 22, '+1 ' + f.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: f.ore }); ctx.buzz(15); ctx.pet.bark(); }
+          return false; } }
+        if (f.split && f.y > f.split) { for (var k = 0; k < 2; k++) spawnFire({ x: f.x, y: f.y }); f.split = 0; }
+        if (f.y >= GROUND - 2) {
+          K.burst(f.x, GROUND - 4, '#ff6a1f', 12); ctx.fx('death'); ctx.buzz([40, 30, 40]);
+          S.houses.forEach(function (h) { if (h.alive && Math.abs(h.x - f.x) < 14) { h.alive = false; K.burst(h.x, GROUND - 10, '#b98a4a', 16); } });
+          S.towers.forEach(function (t) { if (t.alive && Math.abs(t.x - f.x) < 12) { t.alive = false; t.ammo = 0; } });
+          if (!S.houses.some(function (h) { return h.alive; })) ctx.over({ win: false, title: 'Village Lost', lines: [['Wave reached', S.wave]] });
+          return false;
+        }
+        return true;
+      });
+      // wave end
+      if (S.endT > 0) { S.endT -= dt; if (S.endT <= 0) { S.wave++; newWave(); } return; }
+      if (S.toSpawn <= 0 && !S.fire.length && !S.rockets.length && !S.booms.length) {
+        var ammo = S.towers.reduce(function (a, t) { return a + t.ammo; }, 0), hs = S.houses.filter(function (h) { return h.alive; }).length;
+        var bonus = ammo * 5 * S.wave + hs * 100 * S.wave; addScore(bonus);
+        S.msg = { text: 'WAVE CLEAR', sub: 'BONUS ' + bonus, t: 2.4 }; S.endT = 2.6;
+        ctx.addOre('coal', 1 + Math.floor(S.wave / 3)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
+        var lost = S.houses.filter(function (h) { return !h.alive; }); if (lost.length) { lost[0].alive = true; K.pop(lost[0].x, GROUND - 30, 'REBUILT!', '#7dff8a'); }
+      }
+    }
+
+    function drawBg(g) {
+      if (!bg) {
+        bg = document.createElement('canvas'); bg.width = W; bg.height = H; var b = bg.getContext('2d'); b.imageSmoothingEnabled = false;
+        var gr = b.createLinearGradient(0, 0, 0, GROUND); gr.addColorStop(0, '#060818'); gr.addColorStop(0.7, '#1b1440'); gr.addColorStop(1, '#4a2a3a'); b.fillStyle = gr; b.fillRect(0, 0, W, GROUND);
+        var r = window.PCWorld.rng(9); for (var i = 0; i < 70; i++) { b.fillStyle = r() < 0.25 ? '#fff' : '#8f96d8'; b.fillRect(Math.floor(r() * W), Math.floor(r() * (GROUND - 80)), 1, 1); }
+        b.fillStyle = '#d9d9e6'; b.fillRect(40, 50, 14, 14); b.fillStyle = '#f2f2fa'; b.fillRect(42, 52, 8, 8);
+        for (var x = 0; x < W; x += 16) { b.drawImage(tex.blocks[T.GRASS].top, 0, 0, 16, 16, x, GROUND, 16, 16); b.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, GROUND + 16, 16, 16); b.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, GROUND + 32, 16, 16); }
+      }
+      g.drawImage(bg, 0, 0);
+    }
+    function drawHouse(g, x) {
+      g.drawImage(tex.blocks[T.PLANKS].top, 0, 0, 16, 16, x - 10, GROUND - 14, 20, 14);
+      g.fillStyle = '#8a2a22'; g.fillRect(x - 12, GROUND - 18, 24, 4); g.fillRect(x - 9, GROUND - 22, 18, 4); g.fillRect(x - 5, GROUND - 25, 10, 3);
+      g.fillStyle = '#4a3020'; g.fillRect(x - 2, GROUND - 8, 5, 8); g.fillStyle = '#ffd23d'; g.fillRect(x + 5, GROUND - 11, 3, 3); g.fillRect(x - 8, GROUND - 11, 3, 3);
+    }
+    function draw(g) {
+      drawBg(g);
+      // houses & towers
+      S.houses.forEach(function (h) { if (h.alive) drawHouse(g, h.x); else { g.fillStyle = '#3a2a22'; g.fillRect(h.x - 10, GROUND - 4, 20, 4); g.fillStyle = '#555'; g.fillRect(h.x - 6, GROUND - 7, 5, 3); } });
+      S.towers.forEach(function (t) {
+        if (!t.alive) { g.fillStyle = '#444'; g.fillRect(t.x - 8, GROUND - 6, 16, 6); return; }
+        g.drawImage(tex.blocks[T.COBBLE].top, 0, 0, 16, 16, t.x - 8, GROUND - 22, 16, 22); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(t.x + 5, GROUND - 22, 3, 22);
+        for (var i = 0; i < t.ammo; i++) { g.fillStyle = '#e36bff'; g.fillRect(t.x - 9 + (i % 5) * 4, GROUND + 4 + Math.floor(i / 5) * 5, 2, 4); }
+      });
+      g.drawImage(hero.up[0], TOWERS[1] + 12, GROUND - 18, 18, 18);
+      ctx.pet.draw(g, ctx.pet.x, GROUND, 18);
+      // fireball trails
+      S.fire.forEach(function (f) {
+        g.strokeStyle = f.ore ? 'rgba(200,200,210,0.5)' : 'rgba(255,120,40,0.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(f.x0, f.y0); g.lineTo(f.x, f.y); g.stroke();
+        if (f.ore) { g.drawImage(tex.blocks[T[f.ore.toUpperCase()]].top, 0, 0, 16, 16, f.x - 6, f.y - 6, 12, 12); }
+        else { g.fillStyle = '#ff6a1f'; g.fillRect(f.x - 4, f.y - 4, 8, 8); g.fillStyle = '#ffd23d'; g.fillRect(f.x - 2, f.y - 2, 4, 4); }
+      });
+      // rockets
+      S.rockets.forEach(function (r) { g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(r.x0, r.y0); g.lineTo(r.x, r.y); g.stroke(); g.fillStyle = '#e36bff'; g.fillRect(r.x - 2, r.y - 2, 4, 4); g.fillStyle = '#fff'; g.fillRect(r.tx - 3, r.ty, 7, 1); g.fillRect(r.tx, r.ty - 3, 1, 7); });
+      // explosions (fireworks)
+      var COLS2 = [['#ff6bd6', '#ffd1f2'], ['#7df9ff', '#e0fdff'], ['#ffe680', '#fff8d6'], ['#7dff8a', '#e2ffe6']];
+      S.booms.forEach(function (b) {
+        var c = COLS2[b.hue]; g.globalAlpha = 0.85; g.fillStyle = Math.floor(S.time * 20) % 2 ? c[0] : c[1];
+        g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+        g.globalAlpha = 1; g.fillStyle = '#fff'; for (var k = 0; k < 8; k++) { var a = k / 8 * Math.PI * 2 + b.t * 3; g.fillRect(Math.round(b.x + Math.cos(a) * (b.r + 3)), Math.round(b.y + Math.sin(a) * (b.r + 3)), 2, 2); }
+      });
+      // crosshair
+      var cx = Math.round(S.cross.x), cy = Math.round(S.cross.y);
+      g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(cx - 7, cy, 5, 1); g.fillRect(cx + 3, cy, 5, 1); g.fillRect(cx, cy - 7, 1, 5); g.fillRect(cx, cy + 3, 1, 5);
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 22);
+      var hs = S.houses.filter(function (h) { return h.alive; }).length;
+      PCTex.drawText(g, 'HOUSES ' + hs, 6, 6, 1.5, '#fff', '#000');
+      PCTex.drawText(g, 'WAVE ' + S.wave, W - 74, 5, 2, '#ffe680', '#000');
+      K.banner(g, W, H, S.msg, 160);
+    }
+    function input(e) {
+      if (e.type === 'touch' && e.phase === 'down') { S.cross.x = e.x; S.cross.y = Math.min(e.y, LAUNCH_Y - 20); launch(e.x, e.y); }
+      else if (e.type === 'a' && e.down) launch(S.cross.x, S.cross.y);
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { launch: launch, spawnFire: spawnFire } };
+  }
+
+  return {
+    id: 'skyguard', name: 'Sky Guard', blurb: 'Fireballs rain on the village. Tap the sky to burst them with fireworks.',
+    view: { w: W, h: H }, music: 'desert',
+    controls: { dpad: false, a: null, b: null },
+    thumb: function (g, w, h, tex) {
+      var T2 = window.PCWorld.TILE;
+      var gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#060818'); gr.addColorStop(1, '#4a2a3a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (var x = 0; x < w; x += 8) g.drawImage(tex.blocks[T2.GRASS].top, 0, 0, 16, 16, x, 42, 8, 6);
+      [14, 28, 42, 54].forEach(function (x) { g.drawImage(tex.blocks[T2.PLANKS].top, 0, 0, 16, 16, x - 4, 36, 8, 6); g.fillStyle = '#8a2a22'; g.fillRect(x - 5, 34, 10, 2); });
+      g.strokeStyle = 'rgba(255,120,40,0.7)'; g.beginPath(); g.moveTo(10, 0); g.lineTo(22, 22); g.moveTo(50, 0); g.lineTo(44, 16); g.stroke();
+      g.fillStyle = '#ff6bd6'; g.beginPath(); g.arc(44, 16, 7, 0, 7); g.fill(); g.fillStyle = '#ff6a1f'; g.fillRect(20, 20, 4, 4);
+    },
+    create: create
+  };
+})());
+
+
+/* Meteor Miner — Asteroids with ore. Steer a little mining rocket through a field of tumbling
+ * stone and ore blocks; shots split big blocks into smaller ones, and the last bits of an ore
+ * meteor leave a glowing ore chunk to scoop up. Your wolf rides along in a space bubble. */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 440, TOP = 22, SIZES = [0, 13, 22, 34], PTS = [0, 100, 50, 20];
+
+  function create(ctx) {
+    var tex = ctx.tex, T = window.PCWorld.TILE, K = PCCab.kit();
+    var S = {};
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function wrap(o) { if (o.x < -20) o.x += W + 40; if (o.x > W + 20) o.x -= W + 40; if (o.y < TOP - 20) o.y += H - TOP + 40; if (o.y > H + 20) o.y -= H - TOP + 40; }
+    function reset() { S.wave = 1; S.lives = 3; S.score = 0; S.time = 0; S.msg = null; S.chunks = []; newWave(); spawnShip(); S.hintT = 1.8; }
+    function oreKind() { return ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (2.5 + S.wave * 0.6)))]; }
+    function newWave() {
+      S.rocks = []; S.ufo = null; S.ufoT = 14 + Math.random() * 8; S.ubul = []; K.clear();
+      var n = Math.min(8, 3 + S.wave);
+      for (var i = 0; i < n; i++) {
+        var edge = Math.random() < 0.5, x = edge ? (Math.random() < 0.5 ? 0 : W) : Math.random() * W, y = edge ? TOP + Math.random() * (H - TOP) : (Math.random() < 0.5 ? TOP : H);
+        addRock(x, y, 3, Math.random() < 0.3 ? oreKind() : null);
+      }
+      S.msg = { text: 'WAVE ' + S.wave, t: 1.5 }; ctx.A.play('ready');
+    }
+    function addRock(x, y, size, ore) {
+      var a = Math.random() * Math.PI * 2, sp = (18 + Math.random() * 30) * (4 - size) * 0.7 + S.wave * 3;
+      S.rocks.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, size: size, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 2, ore: ore, tile: ore ? T[ore.toUpperCase()] : (Math.random() < 0.5 ? T.STONE : T.COBBLE) });
+    }
+    function spawnShip() { S.ship = { x: W / 2, y: (H + TOP) / 2, vx: 0, vy: 0, a: -Math.PI / 2, dead: 0, thrust: false }; S.inv = 2.5; S.bullets = []; S.cool = 0; ctx.pet.reset(S.ship.x, S.ship.y + 20, 2); }
+    function fire() {
+      var s = S.ship; if (s.dead > 0 || S.cool > 0 || S.bullets.length >= 5) return;
+      S.bullets.push({ x: s.x + Math.cos(s.a) * 10, y: s.y + Math.sin(s.a) * 10, vx: Math.cos(s.a) * 390 + s.vx * 0.5, vy: Math.sin(s.a) * 390 + s.vy * 0.5, t: 0.85 });
+      S.cool = 0.16; ctx.fx('shoot');
+    }
+    function breakRock(r) {
+      S.rocks.splice(S.rocks.indexOf(r), 1); addScore(PTS[r.size] * S.wave); K.pop(r.x, r.y - 10, PTS[r.size] * S.wave, '#fff');
+      K.burst(r.x, r.y, (tex.blocks[r.tile] || {}).avg || '#999', 6 + r.size * 3); ctx.fx(r.size === 3 ? 'boom' : 'hit', { tile: T.STONE });
+      if (r.size > 1) { addRock(r.x, r.y, r.size - 1, r.ore); addRock(r.x, r.y, r.size - 1, r.ore && Math.random() < 0.5 ? r.ore : null); }
+      else if (r.ore) S.chunks.push({ x: r.x, y: r.y, vx: r.vx * 0.3, vy: r.vy * 0.3, kind: r.ore, t: 9 });
+      if (!S.rocks.length) { addScore(500 * S.wave); ctx.addOre('coal', 1 + Math.floor(S.wave / 3)); ctx.fx('clear'); ctx.buzz(30); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop(); S.wave++; newWave(); S.inv = Math.max(S.inv, 1.5); }
+    }
+    function crash() {
+      var s = S.ship; if (s.dead > 0 || S.inv > 0) return;
+      s.dead = 1.6; S.lives--; ctx.fx('death'); ctx.buzz([60, 40, 80]); K.burst(s.x, s.y, '#ff8a1f', 20, 220); K.burst(s.x, s.y, '#c9ccd4', 10, 160);
+    }
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.hintT > 0) { S.hintT -= dt; if (S.hintT <= 0) S.msg = { text: 'STEER + SHOOT', t: 2 }; }
+      if (S.inv > 0) S.inv -= dt; if (S.cool > 0) S.cool -= dt;
+      var s = S.ship;
+      if (s.dead > 0) {
+        s.dead -= dt; ctx.pet.sit(dt);
+        if (s.dead <= 0) { if (S.lives <= 0) { ctx.over({ lines: [['Wave reached', S.wave]] }); return; } spawnShip(); S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 }; }
+      } else {
+        s.thrust = false;
+        if (ctx.held.dir >= 0) {
+          var want = Math.atan2(ctx.held.dy, ctx.held.dx), d = want - s.a; d = Math.atan2(Math.sin(d), Math.cos(d));
+          s.a += Math.max(-7 * dt, Math.min(7 * dt, d));
+          if (Math.abs(d) < 1.3) { s.vx += Math.cos(s.a) * 230 * dt; s.vy += Math.sin(s.a) * 230 * dt; s.thrust = true; }
+        }
+        var sp = Math.hypot(s.vx, s.vy); if (sp > 230) { s.vx *= 230 / sp; s.vy *= 230 / sp; }
+        s.vx *= 1 - 0.55 * dt; s.vy *= 1 - 0.55 * dt;
+        s.x += s.vx * dt; s.y += s.vy * dt; wrap(s);
+        if (ctx.held.a || S.touchFire) fire();
+        ctx.pet.follow(s.x, s.y, dt, { dist: 22, snap: 90, speed: 420 });
+      }
+      // bullets
+      S.bullets = S.bullets.filter(function (b) {
+        b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt; wrap(b); if (b.t <= 0) return false;
+        for (var i = 0; i < S.rocks.length; i++) { var r = S.rocks[i]; if (Math.hypot(r.x - b.x, r.y - b.y) < SIZES[r.size] * 0.55) { breakRock(r); return false; } }
+        if (S.ufo && Math.hypot(S.ufo.x - b.x, S.ufo.y - b.y) < 13) { addScore(500 * S.wave); K.pop(S.ufo.x, S.ufo.y - 12, 500 * S.wave, '#7df9ff'); K.burst(S.ufo.x, S.ufo.y, '#d8322b', 16); ctx.fx('boom'); S.chunks.push({ x: S.ufo.x, y: S.ufo.y, vx: 0, vy: 20, kind: 'gold', t: 9 }); S.ufo = null; S.ufoT = 15 + Math.random() * 10; return false; }
+        return true;
+      });
+      // rocks
+      S.rocks.forEach(function (r) { r.x += r.vx * dt; r.y += r.vy * dt; r.rot += r.vr * dt; wrap(r); if (s.dead <= 0 && Math.hypot(r.x - s.x, r.y - s.y) < SIZES[r.size] * 0.48 + 6) crash(); });
+      // ore chunks (magnet toward the ship)
+      S.chunks = S.chunks.filter(function (c) {
+        c.t -= dt; var dx = s.x - c.x, dy = s.y - c.y, d = Math.hypot(dx, dy);
+        if (s.dead <= 0 && d < 60) { c.vx += dx / d * 300 * dt; c.vy += dy / d * 300 * dt; }
+        c.x += c.vx * dt; c.y += c.vy * dt; wrap(c);
+        if (s.dead <= 0 && d < 14) { ctx.addOre(c.kind, 1); addScore(150); K.pop(c.x, c.y - 12, '+1 ' + c.kind.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: c.kind }); ctx.buzz(15); ctx.pet.bark(); return false; }
+        return c.t > 0;
+      });
+      // Rumble saucer
+      if (!S.ufo) { if (S.wave >= 2) { S.ufoT -= dt; if (S.ufoT <= 0) { var fromL = Math.random() < 0.5; S.ufo = { x: fromL ? -16 : W + 16, y: TOP + 40 + Math.random() * (H - TOP - 80), vx: fromL ? 60 : -60, t: 0, shoot: 1.2 }; ctx.fx('foodspawn'); } } }
+      else {
+        var u = S.ufo; u.t += dt; u.x += u.vx * dt; u.y += Math.sin(u.t * 2) * 30 * dt;
+        u.shoot -= dt; if (u.shoot <= 0 && s.dead <= 0) { u.shoot = 1.6; var a = Math.atan2(s.y - u.y, s.x - u.x) + (Math.random() - 0.5) * 0.4; S.ubul.push({ x: u.x, y: u.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, t: 2.2 }); ctx.fx('nope'); }
+        if (u.x < -30 || u.x > W + 30) { S.ufo = null; S.ufoT = 15 + Math.random() * 10; }
+        else if (s.dead <= 0 && Math.hypot(u.x - s.x, u.y - s.y) < 16) crash();
+      }
+      S.ubul = S.ubul.filter(function (b) { b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt; if (s.dead <= 0 && Math.hypot(b.x - s.x, b.y - s.y) < 8) { crash(); return false; } return b.t > 0; });
+    }
+    function drawShip(g, s) {
+      g.save(); g.translate(Math.round(s.x), Math.round(s.y)); g.rotate(s.a);
+      if (s.thrust && Math.floor(S.time * 20) % 2) { g.fillStyle = '#ff8a1f'; g.fillRect(-15, -3, 6, 6); g.fillStyle = '#ffd23d'; g.fillRect(-13, -2, 4, 4); }
+      g.fillStyle = '#9a9aa6'; g.fillRect(-9, -5, 15, 10); g.fillStyle = '#c9ccd4'; g.fillRect(-9, -5, 15, 3);
+      g.fillStyle = '#d8322b'; g.fillRect(6, -4, 4, 8); g.fillRect(10, -2, 2, 4); g.fillRect(-10, -9, 5, 4); g.fillRect(-10, 5, 5, 4);
+      g.fillStyle = '#7df9ff'; g.fillRect(0, -2, 4, 4); g.fillStyle = '#fff'; g.fillRect(1, -2, 1, 1);
+      g.restore();
+    }
+    function draw(g) {
+      g.fillStyle = '#05060f'; g.fillRect(0, 0, W, H);
+      for (var i = 0; i < 60; i++) { var x = (i * 131 + Math.floor(S.time * (i % 3 + 1) * 3)) % W, y = TOP + (i * 71) % (H - TOP); g.fillStyle = i % 5 ? '#6a70a8' : '#fff'; g.fillRect(x, y, 1, 1); }
+      // chunks
+      S.chunks.forEach(function (c) { if (c.t < 2 && Math.floor(S.time * 8) % 2) return; g.fillStyle = 'rgba(255,230,128,0.25)'; g.fillRect(c.x - 9, c.y - 9, 18, 18); g.drawImage(tex.ores[c.kind], c.x - 7, c.y - 7, 14, 14); });
+      // rocks
+      S.rocks.forEach(function (r) { var sz = SIZES[r.size]; g.save(); g.translate(Math.round(r.x), Math.round(r.y)); g.rotate(r.rot); g.drawImage(tex.blocks[r.tile].top, 0, 0, 16, 16, -sz / 2, -sz / 2, sz, sz); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(-sz / 2, sz / 2 - 2, sz, 2); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(-sz / 2, -sz / 2, sz, 2); g.restore(); });
+      // ufo
+      if (S.ufo) { var u = S.ufo; g.fillStyle = '#6a6a78'; g.fillRect(u.x - 14, u.y + 2, 28, 5); g.drawImage(tex.mons.rumble[Math.floor(S.time * 5) % 2], u.x - 9, u.y - 13, 18, 18); PCTex.drawEyes(g, u.x - 9, u.y - 13, 18 / 16, u.vx > 0 ? 3 : 1, false); g.fillStyle = '#ffd23d'; g.fillRect(u.x - 12 + (Math.floor(S.time * 8) % 4) * 7, u.y + 4, 3, 2); }
+      S.ubul.forEach(function (b) { g.fillStyle = '#4fc96a'; g.fillRect(b.x - 3, b.y - 3, 6, 6); });
+      // bullets
+      S.bullets.forEach(function (b) { g.fillStyle = '#fff3a0'; g.fillRect(b.x - 2, b.y - 2, 4, 4); });
+      // wolf in its space bubble, then the ship
+      var s = S.ship;
+      if (ctx.pet.on) { var wx = Math.round(ctx.pet.x), wy = Math.round(ctx.pet.y); ctx.pet.draw(g, wx, wy + 7, 14, ctx.pet.dir); g.strokeStyle = 'rgba(125,249,255,0.6)'; g.lineWidth = 1; g.beginPath(); g.arc(wx, wy, 10, 0, Math.PI * 2); g.stroke(); g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(wx - 5, wy - 7, 2, 2); }
+      if (s.dead <= 0 && !(S.inv > 0 && Math.floor(S.time * 10) % 2)) drawShip(g, s);
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 0, W, TOP);
+      K.hearts(g, tex, S.lives, 6, 4);
+      PCTex.drawText(g, 'WAVE ' + S.wave, W - 74, 5, 2, '#ffe680', '#000');
+      K.banner(g, W, H, S.msg);
+    }
+    function input(e) {
+      if (e.type === 'a' && e.down) fire();
+      else if (e.type === 'touch') { S.touchFire = e.phase !== 'up'; if (e.phase === 'down') fire(); }
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { breakRock: breakRock, fire: fire } };
+  }
+
+  return {
+    id: 'meteor', name: 'Meteor Miner', blurb: 'Fly a mining rocket through tumbling ore meteors. Blast them apart and scoop the ore.',
+    view: { w: W, h: H }, music: 'crystal',
+    controls: { dpad: true, a: 'SHOOT', b: null },
+    thumb: function (g, w, h, tex) {
+      var T2 = window.PCWorld.TILE;
+      g.fillStyle = '#05060f'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; [[5, 5], [30, 40], [58, 10], [12, 38]].forEach(function (q) { g.fillRect(q[0], q[1], 1, 1); });
+      [[12, 12, 14, T2.STONE, 0.4], [48, 30, 12, T2.GOLD, -0.3], [40, 8, 8, T2.COBBLE, 0.8]].forEach(function (r) { g.save(); g.translate(r[0], r[1]); g.rotate(r[4]); g.drawImage(tex.blocks[r[3]].top, 0, 0, 16, 16, -r[2] / 2, -r[2] / 2, r[2], r[2]); g.restore(); });
+      g.save(); g.translate(26, 34); g.rotate(-0.6); g.fillStyle = '#9a9aa6'; g.fillRect(-6, -3, 10, 6); g.fillStyle = '#d8322b'; g.fillRect(4, -2, 3, 4); g.fillStyle = '#ff8a1f'; g.fillRect(-9, -1, 3, 2); g.restore();
+      g.fillStyle = '#fff3a0'; g.fillRect(34, 26, 2, 2);
+    },
+    create: create
+  };
+})());
+
+
+/* Minecart Rush — a Moon Patrol-style rail runner. Ride the minecart (your wolf rides along)
+ * through the mine: jump the broken rails, shoot boulders ahead and bats above, and grab
+ * floating ore. Checkpoints every stretch keep your progress. */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 320, RAIL = 246, CARTX = 88, CHECK = 1400;
+
+  function create(ctx) {
+    var tex = ctx.tex, Wd = window.PCWorld, T = Wd.TILE, hero = PCTex.hero(ctx.look), K = PCCab.kit();
+    var S = {};
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function reset() {
+      S.lives = 3; S.score = 0; S.time = 0; S.msg = { text: 'MINECART RUSH', sub: 'JUMP GAPS - SHOOT ROCKS', t: 2.4 };
+      S.dist = 0; S.check = 0; S.checks = 0; S.obs = []; S.genX = 420; S.bullets = []; K.clear();
+      spawn(); ctx.A.play('ready');
+    }
+    function spawn() {
+      S.cart = { y: RAIL, vy: 0, air: false, dead: 0, spin: 0 }; S.speed = 130; S.safeT = 1.2; S.bullets = [];
+      // clear obstacles right in front of the restart point
+      S.obs = S.obs.filter(function (o) { return o.x < S.dist - 50 || o.x > S.dist + 360; });
+    }
+    function level() { return 1 + S.checks; }
+    function gen() {
+      while (S.genX < S.dist + W + 260) {
+        var x = S.genX, lv = level(), r = Math.random();
+        var nextCheck = Math.ceil((x + 1) / CHECK) * CHECK;
+        if (nextCheck - x < 360) { S.obs.push({ type: 'check', x: nextCheck }); S.genX = nextCheck + 280; continue; }
+        if (r < 0.32) { var w = 42 + Math.random() * Math.min(48, 16 + lv * 8); S.obs.push({ type: 'gap', x: x, w: w }); if (Math.random() < 0.6) S.obs.push({ type: 'ore', x: x + w / 2, y: RAIL - 70, kind: oreKind() }); S.genX += w + 150 - Math.min(50, lv * 6) + Math.random() * 80; }
+        else if (r < 0.58) { var big = lv >= 2 && Math.random() < 0.4; S.obs.push({ type: 'rock', x: x, hp: big ? 2 : 1, size: big ? 20 : 14, ore: Math.random() < 0.3 ? oreKind() : null }); S.genX += 140 + Math.random() * 90; }
+        else if (r < 0.76) { var n = 2 + Math.min(3, Math.floor(lv / 2)); for (var i = 0; i < n; i++) S.obs.push({ type: 'bat', x: x + i * 46, y0: 120 + Math.random() * 50, ph: Math.random() * 6, dive: lv >= 2 && Math.random() < 0.5 }); S.genX += n * 46 + 120; }
+        else if (r < 0.88) { for (var e = 0; e < 5; e++) S.obs.push({ type: 'gem', x: x + e * 18, y: RAIL - 20 - Math.sin(e / 4 * Math.PI) * 40 }); S.genX += 150; }
+        else { S.obs.push({ type: 'gap', x: x, w: 36 }); S.obs.push({ type: 'rock', x: x + 110, hp: 1, size: 14 }); S.genX += 260; }
+      }
+      S.obs = S.obs.filter(function (o) { return o.x + (o.w || 0) > S.dist - 120 || o.type === 'check'; });
+    }
+    function oreKind() { return ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (2.5 + level() * 0.6)))]; }
+    function sx(x) { return x - S.dist + CARTX; }
+    function onGap(wx) { for (var i = 0; i < S.obs.length; i++) { var o = S.obs[i]; if (o.type === 'gap' && wx > o.x + 4 && wx < o.x + o.w - 4) return true; } return false; }
+    function jump() { var c = S.cart; if (c.dead > 0 || c.air) return; c.air = true; c.vy = -370; ctx.fx('hop'); }
+    function shoot() {
+      if (S.cart.dead > 0 || S.bullets.length > 5) return;
+      S.bullets.push({ x: S.dist + 14, y: S.cart.y - 12, vx: 360, vy: 0 }); S.bullets.push({ x: S.dist, y: S.cart.y - 26, vx: 0, vy: -380 }); ctx.fx('shoot');
+    }
+    function crash(fall) {
+      var c = S.cart; if (c.dead > 0 || S.safeT > 0) return;
+      c.dead = 1.5; c.fall = fall; S.lives--; ctx.fx(fall ? 'splash' : 'death'); ctx.buzz([60, 40, 80]); K.burst(CARTX, c.y - 10, '#ffb37a', 14);
+    }
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.safeT > 0) S.safeT -= dt;
+      ctx.pet.sit(dt);
+      var c = S.cart;
+      if (c.dead > 0) {
+        c.dead -= dt; c.spin += dt * 8; if (c.fall) c.y += 160 * dt;
+        if (c.dead <= 0) { if (S.lives <= 0) { ctx.over({ lines: [['Distance', Math.floor(S.dist / 10) + ' M'], ['Checkpoints', S.checks]] }); return; } S.dist = S.check; spawn(); S.msg = { text: S.lives + (S.lives === 1 ? ' LIFE LEFT' : ' LIVES LEFT'), t: 1.2 }; }
+        return;
+      }
+      var want = 130 + Math.min(70, S.checks * 10) + (ctx.held.dir === 3 ? 60 : ctx.held.dir === 1 ? -45 : 0);
+      S.speed += (want - S.speed) * Math.min(1, dt * 3);
+      S.dist += S.speed * dt; gen();
+      if (ctx.held.b && (!S.autoT || S.autoT <= 0)) { shoot(); S.autoT = 0.28; } if (S.autoT > 0) S.autoT -= dt;
+      // cart physics
+      if (c.air) { c.vy += 900 * dt; c.y += c.vy * dt; if (c.vy > 0 && c.y >= RAIL) { if (onGap(S.dist)) { /* keep falling */ } else { c.y = RAIL; c.air = false; c.vy = 0; ctx.fx('drop'); } } if (c.y > RAIL + 30) crash(true); }
+      else if (onGap(S.dist)) { c.air = true; c.vy = 40; }
+      // bullets
+      S.bullets = S.bullets.filter(function (b) {
+        b.x += (b.vx + (b.vx ? 0 : S.speed)) * dt; b.y += b.vy * dt;
+        if (b.y < 20 || b.x > S.dist + W) return false;
+        for (var i = 0; i < S.obs.length; i++) {
+          var o = S.obs[i];
+          if (o.type === 'rock' && b.vx && Math.abs(b.x - o.x) < o.size / 2 + 4 && b.y > RAIL - o.size - 4) {
+            o.hp--; K.burst(sx(o.x), RAIL - o.size / 2, '#8b8b8f', 4); ctx.fx('hit', { tile: T.STONE });
+            if (o.hp <= 0) { S.obs.splice(i, 1); addScore(100 * o.size / 14); K.pop(sx(o.x), RAIL - 30, String(Math.round(100 * o.size / 14)), '#fff'); if (o.ore) { ctx.addOre(o.ore, 1); K.pop(sx(o.x), RAIL - 44, '+1 ' + o.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: o.ore }); ctx.pet.bark(); } }
+            return false;
+          }
+          if (o.type === 'bat' && !o.dead && Math.abs(b.x - o.x) < 11 && Math.abs(b.y - batY(o)) < 10) { o.dead = true; addScore(150); K.pop(sx(o.x), batY(o) - 10, '150', '#7df9ff'); K.burst(sx(o.x), batY(o), '#3a2a4a', 8); ctx.fx('bonk'); return false; }
+        }
+        return true;
+      });
+      // obstacles vs cart
+      var cx = S.dist;
+      S.obs.slice().forEach(function (o) {
+        if (o.type === 'rock') { if (Math.abs(o.x - cx) < o.size / 2 + 11 && c.y > RAIL - o.size + 2) crash(false); }
+        else if (o.type === 'bat' && !o.dead) { var by = batY(o); if (Math.abs(o.x - cx) < 14 && by > c.y - 34 && by < c.y) crash(false); }
+        else if (o.type === 'ore' && Math.abs(o.x - cx) < 18 && Math.abs(o.y - (c.y - 22)) < 22) { S.obs.splice(S.obs.indexOf(o), 1); ctx.addOre(o.kind, 1); addScore(200); K.pop(CARTX, c.y - 50, '+1 ' + o.kind.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: o.kind }); ctx.buzz(15); ctx.pet.bark(); }
+        else if (o.type === 'gem' && Math.abs(o.x - cx) < 14 && Math.abs(o.y - (c.y - 16)) < 18) { S.obs.splice(S.obs.indexOf(o), 1); addScore(20); ctx.fx('gem'); }
+        else if (o.type === 'check' && !o.hit && cx >= o.x) {
+          o.hit = true; S.check = o.x; S.checks++; addScore(500 * S.checks); ctx.fx('clear'); ctx.pet.bark('WOOF WOOF!'); ctx.pet.hop();
+          ctx.addOre('coal', 1 + Math.floor(S.checks / 2)); S.msg = { text: 'CHECKPOINT ' + S.checks, sub: 'FASTER NOW!', t: 1.8 };
+        }
+      });
+      S.obs.forEach(function (o) { if (o.type === 'bat') { o.x -= 30 * dt; o.ph += dt * 3; } });
+    }
+    function batY(o) { var y = o.y0 + Math.sin(o.ph) * 18; if (o.dive) { var d = o.x - S.dist; if (d < 140 && d > -20) y += (140 - d) * 0.55; } return Math.min(RAIL - 18, y); }
+
+    function draw(g) {
+      // sky / cave backdrop with parallax
+      var gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#2a1f3a'); gr.addColorStop(1, '#5a3a2a'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      for (var i = 0; i < 12; i++) { var mx = ((i * 90 - S.dist * 0.2) % (12 * 90) + 12 * 90) % (12 * 90) - 60, mh = 60 + (i * 37) % 50; g.fillStyle = '#3a2c44'; g.fillRect(mx, RAIL - 40 - mh, 70, mh + 40); g.fillStyle = '#44344f'; g.fillRect(mx + 10, RAIL - 40 - mh, 50, 8); }
+      for (var j = 0; j < 8; j++) { var tx = ((j * 140 - S.dist * 0.6) % 1120 + 1120) % 1120 - 40; g.fillStyle = '#5a3f22'; g.fillRect(tx, RAIL - 90, 4, 90); g.fillStyle = '#ffb13b'; g.fillRect(tx - 1, RAIL - 96, 6, 6); g.fillStyle = 'rgba(255,177,59,0.15)'; g.fillRect(tx - 10, RAIL - 106, 26, 26); }
+      // ground + rails
+      var off = -((S.dist) % 16);
+      for (var x = off; x < W; x += 16) {
+        var wx = S.dist + x - CARTX + 8, gap = onGap(wx);
+        if (!gap) { g.drawImage(tex.blocks[T.STONE].top, 0, 0, 16, 16, x, RAIL + 6, 16, 16); g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, RAIL + 22, 16, 16); g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, RAIL + 38, 16, 16); g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, x, RAIL + 54, 16, 16); g.fillStyle = '#5a3f22'; g.fillRect(x + 3, RAIL + 1, 4, 5); g.fillStyle = '#8b8b8f'; g.fillRect(x, RAIL, 16, 2); }
+        else { g.fillStyle = '#0d0910'; g.fillRect(x, RAIL + 6, 16, H - RAIL); }
+      }
+      // checkpoint posts
+      S.obs.forEach(function (o) { if (o.type !== 'check') return; var X = sx(o.x); if (X < -20 || X > W + 20) return; g.fillStyle = '#5a5a60'; g.fillRect(X - 2, RAIL - 50, 4, 50); g.fillStyle = o.hit ? '#7dff8a' : '#d8322b'; g.fillRect(X - 8, RAIL - 60, 16, 12); });
+      // rocks, ore, gems, bats
+      S.obs.forEach(function (o) {
+        var X = sx(o.x); if (X < -30 || X > W + 30) return;
+        if (o.type === 'rock') { var s = o.size; g.drawImage(tex.blocks[o.ore ? T[o.ore.toUpperCase()] : T.COBBLE].top, 0, 0, 16, 16, X - s / 2, RAIL - s, s, s); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(X - s / 2, RAIL - 2, s, 2); if (o.hp < 2 && s > 14) g.drawImage(tex.cracks[3], 0, 0, 16, 16, X - s / 2, RAIL - s, s, s); }
+        else if (o.type === 'ore') { g.fillStyle = 'rgba(255,230,128,0.2)'; g.fillRect(X - 10, o.y - 10 + Math.sin(S.time * 4) * 2, 20, 20); g.drawImage(tex.ores[o.kind], X - 7, o.y - 7 + Math.sin(S.time * 4) * 2, 14, 14); }
+        else if (o.type === 'gem') { g.fillStyle = '#1d6b4a'; g.fillRect(X - 3, o.y - 2, 6, 6); g.fillStyle = '#5ef0a8'; g.fillRect(X - 3, o.y - 3, 6, 5); }
+        else if (o.type === 'bat' && !o.dead) { var by = batY(o), fl = Math.floor(S.time * 10 + o.ph) % 2; g.fillStyle = '#2a1f3a'; g.fillRect(X - 10, by - (fl ? 4 : 0), 7, 3); g.fillRect(X + 3, by - (fl ? 4 : 0), 7, 3); g.fillStyle = '#4a3a5a'; g.fillRect(X - 4, by - 3, 8, 7); g.fillStyle = '#ff6a6a'; g.fillRect(X - 2, by - 1, 1, 1); g.fillRect(X + 1, by - 1, 1, 1); }
+      });
+      // bullets
+      S.bullets.forEach(function (b) { g.fillStyle = '#fff3a0'; if (b.vx) g.fillRect(sx(b.x) - 4, b.y - 1, 8, 3); else g.fillRect(sx(b.x) - 1, b.y - 4, 3, 8); });
+      // cart with hero + wolf
+      var c = S.cart, blink = S.safeT > 0 && Math.floor(S.time * 10) % 2;
+      if (!blink) {
+        g.save(); g.translate(CARTX, Math.round(c.y)); if (c.dead > 0) g.rotate(-c.spin * 0.3);
+        g.drawImage(hero.right[0], -10, -34, 18, 18);
+        if (ctx.pet.on) ctx.pet.draw(g, -9, -12, 13, 3);
+        g.fillStyle = '#5a5a64'; g.fillRect(-16, -16, 32, 12); g.fillStyle = '#8b8b96'; g.fillRect(-16, -16, 32, 3); g.fillStyle = '#3a3a44'; g.fillRect(-14, -8, 28, 2);
+        var wr = Math.floor(S.dist / 6) % 2;
+        g.fillStyle = '#26262c'; g.fillRect(-12, -5, 7, 7); g.fillRect(5, -5, 7, 7); g.fillStyle = '#8b8b96'; g.fillRect(-10 + wr * 2, -3, 2, 2); g.fillRect(7 + wr * 2, -3, 2, 2);
+        g.restore();
+      }
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 22);
+      K.hearts(g, tex, S.lives, 6, 4);
+      PCTex.drawText(g, Math.floor(S.dist / 10) + ' M', 110, 5, 2, '#fff', '#000');
+      var toNext = CHECK - (S.dist % CHECK); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(W - 90, 8, 80, 6); g.fillStyle = '#7dff8a'; g.fillRect(W - 90, 8, 80 * (1 - toNext / CHECK), 6);
+      K.banner(g, W, H, S.msg, 90);
+    }
+    function input(e) {
+      if (e.type === 'a' && e.down) jump();
+      else if (e.type === 'b' && e.down) { shoot(); S.autoT = 0.35; }
+      else if (e.type === 'touch' && e.phase === 'down') { if (e.x > W * 0.6) shoot(); else jump(); }
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { jump: jump, shoot: shoot, gen: gen } };
+  }
+
+  return {
+    id: 'minecart', name: 'Minecart Rush', blurb: 'Ride the rails with your wolf. Jump broken track, shoot rocks and bats, grab ore.',
+    view: { w: W, h: H }, music: 'desert',
+    controls: { dpad: 'lr', a: 'JUMP', b: 'SHOOT' },
+    thumb: function (g, w, h, tex, look) {
+      var T2 = window.PCWorld.TILE;
+      g.fillStyle = '#3a2c44'; g.fillRect(0, 0, w, h);
+      for (var x = 0; x < w; x += 8) if (x < 30 || x > 44) { g.drawImage(tex.blocks[T2.STONE].top, 0, 0, 16, 16, x, 38, 8, 10); g.fillStyle = '#8b8b8f'; g.fillRect(x, 37, 8, 1); }
+      g.drawImage(tex.blocks[T2.COBBLE].top, 0, 0, 16, 16, 52, 30, 7, 7);
+      g.drawImage(PCTex.hero(look || PCTex.LOOK_DEFAULT).right[0], 12, 18, 11, 11);
+      g.fillStyle = '#5a5a64'; g.fillRect(8, 27, 20, 8); g.fillStyle = '#26262c'; g.fillRect(10, 34, 4, 4); g.fillRect(22, 34, 4, 4);
+      g.drawImage(tex.ores.gold, 34, 16, 8, 8);
+    },
+    create: create
+  };
+})());
+
+
+/* Bonk-a-Mob — whack-a-mole with cube monsters. Tap monsters as they pop out of the nine
+ * holes, tap ore blocks to mine them, but never bonk the TNT — or your wolf! */
+PCCab.register((function () {
+  'use strict';
+  var W = 320, H = 420, TIME = 50;
+  var HX = [62, 160, 258], HY = [150, 250, 350];
+  var MONS = ['rumble', 'sly', 'frost', 'mudge'];
+
+  function create(ctx) {
+    var tex = ctx.tex, T = window.PCWorld.TILE, K = PCCab.kit();
+    var S = {}, bg = null;
+    function addScore(n) { S.score += n; ctx.score(S.score); }
+    function reset() {
+      S.score = 0; S.time = 0; S.left = TIME; S.lives = 3; S.combo = 0; S.best = 0; S.bonks = 0; S.spawnT = 1.2; S.swing = null; S.cursor = 4; S.done = false;
+      S.holes = []; for (var i = 0; i < 9; i++) S.holes.push({ x: HX[i % 3], y: HY[Math.floor(i / 3)], st: 'empty', t: 0, dur: 0, kind: null });
+      S.msg = { text: 'BONK-A-MOB', sub: 'NOT THE TNT - OR YOUR WOLF!', t: 2.2 }; K.clear(); ctx.A.play('ready');
+    }
+    function spawn() {
+      var empty = S.holes.filter(function (h) { return h.st === 'empty'; }); if (!empty.length) return;
+      var h = empty[Math.floor(Math.random() * empty.length)], r = Math.random(), wolf = ctx.pet.on && !S.holes.some(function (o) { return o.kind === 'wolf' && o.st !== 'empty'; });
+      var k;
+      if (r < 0.06) k = 'gold'; else if (r < 0.19) k = 'ore'; else if (r < 0.28) k = 'tnt'; else if (r < 0.35 && wolf) k = 'wolf'; else k = MONS[Math.floor(Math.random() * 4)];
+      h.kind = k; h.st = 'up'; h.t = 0; h.dur = Math.max(0.55, 1.25 - S.time * 0.013) * (k === 'gold' ? 0.7 : 1); h.ore = k === 'ore' ? ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'][Math.min(6, Math.floor(Math.random() * (3 + S.time / 12)))] : null;
+      h.face = Math.floor(Math.random() * 4);
+    }
+    function rise(h) { if (h.st === 'up') return Math.min(1, h.t / 0.14); if (h.st === 'down' || h.st === 'hit') return Math.max(0, 1 - h.t / 0.18); return 0; }
+    function bonk(h) {
+      if (S.done) return;
+      S.swing = { x: h.x, y: h.y - 30, t: 0.18 };
+      if (h.st !== 'up' || rise(h) < 0.35) { ctx.fx('click'); return; }
+      h.st = 'hit'; h.t = 0;
+      if (h.kind === 'tnt') { S.lives--; S.combo = 0; ctx.fx('boom'); ctx.buzz([50, 30, 60]); K.burst(h.x, h.y - 20, '#ff6a1f', 18, 200); K.pop(h.x, h.y - 50, 'BOOM!', '#ff7a6a'); S.shake = 0.3; if (S.lives <= 0) end(); return; }
+      if (h.kind === 'wolf') { S.combo = 0; S.left = Math.max(0, S.left - 3); ctx.pet.bark('YIP!'); K.pop(h.x, h.y - 50, 'NOT YOUR PAL! -3', '#ff7a6a'); ctx.fx('nope'); return; }
+      S.combo++; S.best = Math.max(S.best, S.combo); var mult = 1 + Math.floor(S.combo / 5);
+      if (h.kind === 'ore') { ctx.addOre(h.ore, 1); addScore(30 * mult); K.pop(h.x, h.y - 50, '+1 ' + h.ore.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: h.ore }); ctx.buzz(15); ctx.pet.bark(); return; }
+      var pts = (h.kind === 'gold' ? 100 : 10) * mult; S.bonks++;
+      addScore(pts); K.pop(h.x, h.y - 50, pts + (mult > 1 ? ' x' + mult : ''), h.kind === 'gold' ? '#ffe680' : '#fff'); K.burst(h.x, h.y - 24, h.kind === 'gold' ? '#f2c230' : '#c9ccd4', 8); ctx.fx('bonk'); ctx.buzz(10);
+      if (h.kind === 'gold') { ctx.fx('crystal'); S.left = Math.min(TIME, S.left + 3); K.pop(h.x, h.y - 64, '+3 SEC', '#7df9ff'); }
+    }
+    function end() {
+      if (S.done) return; S.done = true;
+      ctx.addOre('coal', 1 + Math.floor(S.bonks / 15)); if (S.bonks >= 40) ctx.addOre('iron', 1);
+      ctx.pet.bark('WOOF WOOF!');
+      ctx.over({ win: S.lives > 0, title: S.lives > 0 ? 'Time Up!' : 'Kaboom!', lines: [['Monsters bonked', S.bonks], ['Best combo', S.best]] });
+    }
+    function update(dt) {
+      S.time += dt; K.tick(dt);
+      if (S.msg) { S.msg.t -= dt; if (S.msg.t <= 0) S.msg = null; }
+      if (S.shake > 0) S.shake -= dt;
+      if (S.swing) { S.swing.t -= dt; if (S.swing.t <= 0) S.swing = null; }
+      ctx.pet.sit(dt);
+      if (S.done) return;
+      if (S.time > 1.2) { S.left -= dt; if (S.left <= 0) { S.left = 0; end(); return; } }
+      S.spawnT -= dt;
+      if (S.spawnT <= 0) { S.spawnT = Math.max(0.32, 0.95 - S.time * 0.012) * (0.7 + Math.random() * 0.6); spawn(); if (S.time > 20 && Math.random() < 0.3) spawn(); }
+      S.holes.forEach(function (h) {
+        if (h.st === 'empty') return; h.t += dt;
+        if (h.st === 'up' && h.t >= h.dur) { h.st = 'down'; h.t = 0; if (MONS.indexOf(h.kind) >= 0 || h.kind === 'gold') S.combo = 0; if (h.kind === 'wolf') { ctx.pet.bark('WOOF!'); addScore(20); } }
+        else if ((h.st === 'down' || h.st === 'hit') && h.t >= 0.2) { h.st = 'empty'; h.kind = null; }
+      });
+    }
+    function drawBg(g) {
+      if (!bg) {
+        bg = document.createElement('canvas'); bg.width = W; bg.height = H; var b = bg.getContext('2d'); b.imageSmoothingEnabled = false;
+        b.fillStyle = '#6fb7ff'; b.fillRect(0, 0, W, 90);
+        b.fillStyle = '#fff'; [[30, 30], [180, 20], [250, 50]].forEach(function (c) { b.fillRect(c[0], c[1], 36, 8); b.fillRect(c[0] + 8, c[1] - 6, 18, 6); });
+        for (var y = 80; y < H; y += 16) for (var x = 0; x < W; x += 16) b.drawImage(tex.blocks[T.GRASS].top, 0, 0, 16, 16, x, y, 16, 16);
+        b.fillStyle = 'rgba(0,0,0,0.08)'; for (var yy = 80; yy < H; yy += 32) b.fillRect(0, yy, W, 16);
+      }
+      g.drawImage(bg, 0, 0);
+    }
+    function drawPopper(g, h) {
+      var r = rise(h), top = h.y - 44 * r, k = h.kind;
+      if (r <= 0) return;
+      g.save(); g.beginPath(); g.rect(h.x - 40, h.y - 80, 80, 80); g.clip();
+      if (k === 'tnt') g.drawImage(tex.tnt[Math.floor(S.time * 10) % 2], h.x - 18, top, 36, 36);
+      else if (k === 'ore') { g.drawImage(tex.blocks[T[h.ore.toUpperCase()]].top, 0, 0, 16, 16, h.x - 18, top, 36, 36); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(h.x - 18, top, 36, 3); }
+      else if (k === 'wolf') ctx.pet.draw(g, h.x, top + 40, 40, 2);
+      else {
+        var kind = k === 'gold' ? 'rumble' : k, dazed = h.st === 'hit';
+        g.drawImage(tex.mons[dazed ? 'flash' : kind][Math.floor(S.time * 5) % 2], h.x - 20, top, 40, 40);
+        if (k === 'gold') { g.globalAlpha = 0.55; g.fillStyle = '#f2c230'; g.fillRect(h.x - 20, top, 40, 40); g.globalAlpha = 1; }
+        if (!dazed) PCTex.drawEyes(g, h.x - 20, top, 2.5, h.face, false);
+        else PCTex.drawText(g, 'x x', h.x - 8, top + 12, 1.5, '#1b1822');
+      }
+      g.restore();
+    }
+    function draw(g) {
+      g.save(); if (S.shake > 0) g.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+      drawBg(g);
+      S.holes.forEach(function (h, i) {
+        // hole back
+        g.fillStyle = '#2a1a10'; g.fillRect(h.x - 36, h.y - 12, 72, 22); g.fillStyle = '#140c08'; g.fillRect(h.x - 32, h.y - 10, 64, 16);
+        drawPopper(g, h);
+        // front rim
+        g.drawImage(tex.blocks[T.DIRT].top, 0, 0, 16, 16, h.x - 38, h.y + 4, 76, 12); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(h.x - 38, h.y + 14, 76, 2);
+        if (i === S.cursor && S.keys) { g.strokeStyle = '#ffe680'; g.lineWidth = 2; g.strokeRect(h.x - 40, h.y - 60, 80, 78); }
+      });
+      // swing
+      if (S.swing) { var pk = tex.picks[Math.min(4, ctx.save.up.pick || 0)], a = S.swing.t / 0.18; g.save(); g.translate(S.swing.x + 14, S.swing.y); g.rotate(-1.2 * a + 0.3); g.drawImage(pk, -24, -24, 28, 28); g.restore(); }
+      // cheering wolf in the corner (when it isn't popping out of a hole)
+      if (!S.holes.some(function (h) { return h.kind === 'wolf'; })) ctx.pet.draw(g, 26, H - 6, 24, 3);
+      K.draw(g);
+      // hud
+      g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, 0, W, 24);
+      K.hearts(g, tex, S.lives, 6, 5);
+      var f = S.left / TIME; g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(70, 8, 150, 8); g.fillStyle = f < 0.2 ? '#ff7a6a' : '#5ef0a8'; g.fillRect(70, 8, 150 * f, 8);
+      PCTex.drawText(g, Math.ceil(S.left) + 'S', 226, 6, 2, '#fff', '#000');
+      if (S.combo >= 5) PCTex.drawText(g, 'COMBO x' + (1 + Math.floor(S.combo / 5)), W / 2 - 40, 32, 2, '#ffe680', '#000');
+      K.banner(g, W, H, S.msg, 190);
+      g.restore();
+    }
+    function nearest(x, y) { var best = null, bd = 1e9; S.holes.forEach(function (h) { var d = Math.hypot(h.x - x, (h.y - 20) - y); if (d < bd) { bd = d; best = h; } }); return bd < 60 ? best : null; }
+    function input(e) {
+      if (e.type === 'touch' && e.phase === 'down') { S.keys = false; var h = nearest(e.x, e.y); if (h) bonk(h); else S.swing = { x: e.x, y: e.y, t: 0.18 }; }
+      else if (e.type === 'dir' && e.dir >= 0) { S.keys = true; var c = S.cursor % 3, r = Math.floor(S.cursor / 3); if (e.dir === 1) c = Math.max(0, c - 1); if (e.dir === 3) c = Math.min(2, c + 1); if (e.dir === 0) r = Math.max(0, r - 1); if (e.dir === 2) r = Math.min(2, r + 1); S.cursor = r * 3 + c; }
+      else if (e.type === 'a' && e.down) { S.keys = true; bonk(S.holes[S.cursor]); }
+    }
+    reset();
+    return { start: function () { }, update: update, draw: draw, input: input, S: S, dbg: { bonk: bonk, spawn: spawn } };
+  }
+
+  return {
+    id: 'bonk', name: 'Bonk-a-Mob', blurb: 'Bonk the monsters popping out of the holes. Mine the ore. Never bonk the TNT or your wolf!',
+    view: { w: W, h: H }, music: 'meadow',
+    controls: { dpad: false, a: null, b: null },
+    thumb: function (g, w, h, tex) {
+      var T2 = window.PCWorld.TILE;
+      for (var y = 0; y < h; y += 8) for (var x = 0; x < w; x += 8) g.drawImage(tex.blocks[T2.GRASS].top, 0, 0, 16, 16, x, y, 8, 8);
+      [[12, 18], [32, 18], [52, 18], [12, 38], [32, 38], [52, 38]].forEach(function (q, i) { g.fillStyle = '#140c08'; g.fillRect(q[0] - 8, q[1] - 2, 16, 5); if (i === 1) { g.drawImage(tex.mons.rumble[0], q[0] - 6, q[1] - 12, 12, 12); } if (i === 3) g.drawImage(tex.tnt[0], q[0] - 5, q[1] - 10, 10, 10); if (i === 5) g.drawImage(tex.blocks[T2.GOLD].top, 0, 0, 16, 16, q[0] - 5, q[1] - 10, 10, 10); g.drawImage(tex.blocks[T2.DIRT].top, 0, 0, 16, 16, q[0] - 9, q[1] + 2, 18, 3); });
+      g.drawImage(tex.picks[0], 36, 2, 12, 12);
+    },
+    create: create
+  };
+})());
+
+
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '2.1.0';
+  var VERSION = '2.2.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
