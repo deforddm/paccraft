@@ -12,6 +12,32 @@ var PCCab = (function () {
   var last = 0, raf = 0;
 
   function register(def) { games[def.id] = def; order.push(def.id); }
+
+  // small shared toolkit for cabinets: particles, score popups, banner message, hearts
+  function kit() {
+    var parts = [], pops = [];
+    return {
+      burst: function (x, y, col, n, sp) { sp = sp || 150; for (var i = 0; i < n; i++) parts.push({ x: x, y: y, vx: (Math.random() - 0.5) * sp, vy: -Math.random() * sp * 0.75 - 10, g: 280, life: 0.4 + Math.random() * 0.3, t: 0, col: col, s: 2 + Math.random() * 3 }); },
+      pop: function (x, y, text, col) { pops.push({ x: x, y: y, text: String(text), col: col || '#fff', t: 0 }); },
+      tick: function (dt) {
+        for (var i = parts.length - 1; i >= 0; i--) { var p = parts[i]; p.t += dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.t >= p.life) parts.splice(i, 1); }
+        for (var j = pops.length - 1; j >= 0; j--) { pops[j].t += dt; if (pops[j].t >= 1) pops.splice(j, 1); }
+      },
+      draw: function (g) {
+        parts.forEach(function (p) { g.globalAlpha = Math.max(0, 1 - p.t / p.life); g.fillStyle = p.col; g.fillRect(p.x, p.y, p.s, p.s); }); g.globalAlpha = 1;
+        pops.forEach(function (p) { g.globalAlpha = Math.max(0, 1 - p.t); PCTex.drawText(g, p.text, Math.round(p.x - PCTex.textWidth(p.text, 1) / 2), Math.round(p.y - p.t * 24), 1, p.col, '#000'); }); g.globalAlpha = 1;
+      },
+      clear: function () { parts.length = 0; pops.length = 0; },
+      banner: function (g, W, H, msg, y) {
+        if (!msg) return;
+        var s = msg.text.length > 12 ? 2 : 3, tw = PCTex.textWidth(msg.text, s), yy = y == null ? H / 2 - 20 : y, hh = msg.sub ? 52 : 36;
+        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(Math.round(W / 2 - tw / 2 - 10), yy, tw + 20, hh);
+        PCTex.drawText(g, msg.text, Math.round(W / 2 - tw / 2), yy + 10, s, '#ffe680', '#000');
+        if (msg.sub) PCTex.drawText(g, msg.sub, Math.round(W / 2 - PCTex.textWidth(msg.sub, 2) / 2), yy + 34, 2, '#fff', '#000');
+      },
+      hearts: function (g, tex, n, x, y) { for (var i = 0; i < n; i++) g.drawImage(tex.heart[1], x + i * 16, y, 14, 13); }
+    };
+  }
   function list() { return order.map(function (id) { return games[id]; }); }
   function setApi(a) { api = a; }
 
@@ -201,5 +227,5 @@ var PCCab = (function () {
     document.addEventListener('visibilitychange', function () { if (document.hidden && cur) togglePause(true); });
   }
 
-  return { register: register, list: list, games: games, setApi: setApi, init: init, start: start, stop: stop, resize: resize, isRunning: function () { return !!cur; }, current: function () { return cur; }, held: held };
+  return { register: register, list: list, kit: kit, games: games, setApi: setApi, init: init, start: start, stop: stop, resize: resize, isRunning: function () { return !!cur; }, current: function () { return cur; }, held: held };
 })();

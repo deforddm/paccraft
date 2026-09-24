@@ -300,6 +300,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cab-card.crossing { border-color: #4fc96a; }
 .cab-card.snake { border-color: #5ef0a8; }
 .cab-card.stack { border-color: #e36bff; }
+.cab-card.tntmaze { border-color: #d8322b; }
+.cab-card.cubehop { border-color: #f2c230; }
+.cab-card.tower { border-color: #b98a4a; }
+.cab-card.caveworm { border-color: #e87aa0; }
+.cab-card.skyguard { border-color: #ff6bd6; }
+.cab-card.meteor { border-color: #7df9ff; }
+.cab-card.minecart { border-color: #8b8b96; }
+.cab-card.bonk { border-color: #7dff8a; }
+@media (min-width: 700px) { .hub-wrap { max-width: 760px; } .cabinets { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1000px) { .hub-wrap { max-width: 980px; } .cabinets { grid-template-columns: repeat(4, 1fr); } }
 .hello-row { display: flex; align-items: center; gap: 8px; }
 .hub-pet { width: 70px; height: 60px; image-rendering: pixelated; cursor: pointer; flex: none; margin-left: -6px; }
 .hub-row { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
