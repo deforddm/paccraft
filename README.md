@@ -12,6 +12,14 @@ A blocky mash-up arcade made for Max — four retro arcade games in one installa
 | **Creek Crossing** | Frogger: hop across five rails of runaway minecarts, ride logs, ice floes and diving lily pads over the creek, and fill the five burrows on the far bank. An ore bonus wanders between empty burrows. | joystick / swipe / tap |
 | **Slime Snake** | Snake: a growing slime gobbles emeralds, grabs the ore blocks that pop up for a few seconds, and must dodge the cobble and its own tail. Every 10 emeralds = a level and a coal. | joystick / swipe |
 | **Block Stack** | A falling-block puzzle built from real blocks. Slide, spin and drop the pieces; fill rows to clear them. Ore blocks hidden in the pieces go into your bag when their row clears; a four-row clear adds an iron. | joystick, SPIN, DROP (or drag / tap / swipe down) |
+| **TNT Maze** | Bomberman: drop TNT to blast through dirt and planks, bonk monsters in the blast, grab ore and power-ups from the rubble (more TNT, bigger blast, speedy boots), then take the portal once every monster is gone. | joystick, TNT |
+| **Cube Hop** | Q*bert on a block pyramid: hop diagonally to turn every grass top to gold (later levels need two hops, then gold flips back). Dodge red slimes and Rumble, catch crystals to freeze everything, catch ore blocks, and ride a floating lift to the top. | tap where to hop (or joystick diagonals) |
+| **Rumble Tower** | Donkey Kong: Big Rumble rolls TNT kegs down sloping plank girders. Jump them for points, climb the ladders, grab a pickaxe to smash kegs, collect ore, and reach the top ledge where your wolf waits. | joystick, JUMP |
+| **Cave Worm** | Centipede: a long worm winds down through mossy blocks. Each segment you shoot becomes a block and splits the worm. Blast ore blocks for ore; shoot the jumping spider in your zone. | joystick / drag, SHOOT |
+| **Sky Guard** | Missile Command: tap the sky to launch firework rockets from three towers and burst the fireballs before they hit the village. Grey ore meteors drop ore. One house is rebuilt after every wave. | tap (or arrows + Space) |
+| **Meteor Miner** | Asteroids: steer a mining rocket through tumbling stone and ore blocks that split when shot; the last bits of an ore meteor leave a chunk to scoop up. Rumble's saucer shoots back. Your wolf floats along in a space bubble. | joystick (steer + thrust), SHOOT |
+| **Minecart Rush** | Moon Patrol: ride the rails with your wolf in the cart, jump broken track, shoot boulders ahead and bats above, grab floating ore. Checkpoints keep your progress and speed things up. | ◀ ▶ speed, JUMP, SHOOT |
+| **Bonk-a-Mob** | Whack-a-mole: 50 seconds to bonk the monsters popping out of nine holes. Gold monsters add time, ore blocks go in your bag — but never bonk the TNT or your wolf. | tap (or arrows + Space) |
 
 Each cabinet keeps its own best score. Ores earned anywhere spend anywhere — at the Crafting Table (PacCraft upgrades), on hats and the wolf, and in the Lucky Mine.
 
@@ -82,6 +90,14 @@ src/games/invaders.js Cube Invaders
 src/games/crossing.js Creek Crossing
 src/games/snake.js    Slime Snake
 src/games/stack.js    Block Stack
+src/games/tntmaze.js  TNT Maze
+src/games/cubehop.js  Cube Hop
+src/games/tower.js    Rumble Tower
+src/games/caveworm.js Cave Worm
+src/games/skyguard.js Sky Guard
+src/games/meteor.js   Meteor Miner
+src/games/minecart.js Minecart Rush
+src/games/bonk.js     Bonk-a-Mob
 src/pet.js            the wolf companion helper used by every cabinet
 src/world.js          blocks, biomes, seeded RNG, symmetric maze generator, custom levels
 src/game.js           rules + simulation: movement, monster AI, digging, blocks, TNT, power, scoring

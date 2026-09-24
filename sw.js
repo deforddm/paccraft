@@ -2,12 +2,12 @@
  * Release checklist: bump CACHE (and VERSION in src/app.js) every time you ship.
  * A new version downloads in the background, then waits; the game shows an
  * "Update ready" button, and tapping it activates the new version and reloads. */
-var CACHE = 'paccraft-v2.1.0';
+var CACHE = 'paccraft-v2.2.0';
 // versions shipped before the update button existed can't show it, so they switch over automatically
 var LEGACY = ['paccraft-v1.0.0'];
 var ASSETS = [
   './', './index.html', './manifest.webmanifest',
-  './src/style.css', './src/world.js', './src/game.js', './src/textures.js', './src/audio.js', './src/render.js', './src/builder.js', './src/pet.js', './src/cab.js', './src/games/breaker.js', './src/games/digger.js', './src/games/dash.js', './src/games/invaders.js', './src/games/crossing.js', './src/games/snake.js', './src/games/stack.js', './src/app.js',
+  './src/style.css', './src/world.js', './src/game.js', './src/textures.js', './src/audio.js', './src/render.js', './src/builder.js', './src/pet.js', './src/cab.js', './src/games/breaker.js', './src/games/digger.js', './src/games/dash.js', './src/games/invaders.js', './src/games/crossing.js', './src/games/snake.js', './src/games/stack.js', './src/games/tntmaze.js', './src/games/cubehop.js', './src/games/tower.js', './src/games/caveworm.js', './src/games/skyguard.js', './src/games/meteor.js', './src/games/minecart.js', './src/games/bonk.js', './src/app.js',
   './fonts/bungee-latin-400-normal.woff2', './fonts/rubik-latin-500-normal.woff2', './fonts/rubik-latin-700-normal.woff2', './fonts/rubik-latin-900-normal.woff2',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png'
 ];
