@@ -86,6 +86,7 @@ var PCAudio = (function () {
     hop: function () { tone(520, 0.06, 'square', 780, 0, 0.16); },
     splash: function () { noise(0.35, 1200, 'lowpass', 0.6, 0, 0.6, 300); tone(300, 0.2, 'sine', 90, 0, 0.3); },
     line: function (d) { var n = (d && d.n) || 1; for (var i = 0; i < n; i++) tone(660 + i * 160, 0.12, 'triangle', null, i * 0.06, 0.3); noise(0.12, 2500, 'bandpass', 0.3); },
+    levelup: function () { [523, 659, 784, 1047, 1319, 1568, 2093].forEach(function (f, i) { tone(f, 0.2, 'square', null, i * 0.08, 0.16); tone(f / 2, 0.24, 'triangle', null, i * 0.08, 0.3); }); noise(0.5, 6000, 'highpass', 0.18, 0.56); },
     drop: function () { tone(180, 0.08, 'sine', 80, 0, 0.5); noise(0.06, 500, 'lowpass', 0.4); }
   };
 

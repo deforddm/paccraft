@@ -21,7 +21,7 @@ var PCRender = (function () {
 
   R.setLook = function (look) {
     this.look = look; this.heroSet = PCTex.hero(look);
-    this.petSet = (look.pet && look.pet !== 'none') ? PCTex.wolf(look.shirt) : null;
+    this.petSet = (look.pet && look.pet !== 'none') ? PCTex.wolf(look.shirt, look.pet) : null;
     this.pet = { x: 0, y: 0, dir: 2, anim: 0, idle: 0, trail: [] };
   };
 

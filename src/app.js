@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '2.2.0';
+  var VERSION = '3.0.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -15,7 +15,7 @@
       up: { pick: 0, boots: 0, hearts: 0, power: 0, magnet: 0, bag: 0, armor: 0 }, tnt: 1,
       best: 0, maxLevel: 1, difficulty: 'easy',
       settings: { sfx: true, music: true, haptics: true, dpad: true, lefty: false, pushDig: true },
-      levels: [], stats: { gems: 0, bonks: 0, mined: 0, games: 0 }, tips: 0, hi: {}
+      levels: [], stats: { gems: 0, bonks: 0, mined: 0, games: 0 }, tips: 0, hi: {}, prog: null
     };
   }
   function load() {
@@ -101,7 +101,8 @@
     current = id;
     $('screen-' + id).classList.add('active');
     $('app').classList.toggle('in-game', id === 'game' || id === 'cab');
-    if (id === 'hub') { history = []; enterHub(); }
+    if (id === 'hub') { history = []; PCQuest.clearBonus(); enterHub(); }
+    if (id === 'quests') PCQuest.render();
     if (id === 'title') enterTitle();
     if (id === 'play') renderPlay();
     if (id === 'craft') renderCraft();
@@ -182,7 +183,7 @@
     }
     if (hx > -20 && hx < c.width + 20) g.drawImage(chase ? set.right[frame] : set.left[frame], Math.round(hx) - 8, 14, 16, 16);
     if (save.look.pet && save.look.pet !== 'none') {
-      var pw = PCTex.wolf(save.look.shirt), px = chase ? hx - 13 : hx + 13;
+      var pw = PCTex.wolf(save.look.shirt, save.look.pet), px = chase ? hx - 13 : hx + 13;
       if (px > -16 && px < c.width + 16) g.drawImage(pw[chase ? 'right' : 'left'][1 + Math.floor(titleT * 9) % 2], Math.round(px) - 8, 17, 14, 14);
     }
     kinds.forEach(function (k, i) {
@@ -217,7 +218,8 @@
     var c = $('hub-sign'), word = 'BLOCKCADE', cols = word.length * 6 - 1, B = 9, side = Math.round(B * 0.4);
     c.width = cols * B + 8; c.height = 7 * B + side + 8;
     var g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-    var blocks = [tex.blocks[TILE.GRASS], tex.blocks[TILE.GOLD], tex.blocks[TILE.DIAMOND], tex.blocks[TILE.MAGMA], tex.blocks[TILE.CRYSTAL], tex.blocks[TILE.IRON], tex.blocks[TILE.EMBER], tex.blocks[TILE.SAND], tex.blocks[TILE.LEAVES]];
+    var golden = PCQuest.level() >= 10;   // Level 10 reward: a solid-gold sign
+    var blocks = golden ? [tex.blocks[TILE.GOLD], tex.blocks[TILE.GOLD], tex.blocks[TILE.DIAMOND]] : [tex.blocks[TILE.GRASS], tex.blocks[TILE.GOLD], tex.blocks[TILE.DIAMOND], tex.blocks[TILE.MAGMA], tex.blocks[TILE.CRYSTAL], tex.blocks[TILE.IRON], tex.blocks[TILE.EMBER], tex.blocks[TILE.SAND], tex.blocks[TILE.LEAVES]];
     for (var row = 0; row < 7; row++) for (var i = 0; i < word.length; i++) {
       var gl = PCTex.GLYPH[word[i]], b = blocks[i % blocks.length];
       for (var cx = 0; cx < 5; cx++) {
@@ -229,6 +231,7 @@
         g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x + B - 1, y, 1, B); g.fillRect(x, y + B - 1, B, 1);
       }
     }
+    if (golden) { g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255,196,30,0.62)'; g.fillRect(0, 0, c.width, c.height); g.globalCompositeOperation = 'source-over'; }
   }
   var CABINETS = [
     { id: 'paccraft', cls: 'pac', name: 'PacCraft', blurb: 'Gobble gems, dig tunnels, bonk cube monsters.', start: function () { show('title'); },
@@ -245,6 +248,9 @@
   ];
   function enterHub() {
     $('hub-hello').textContent = 'Hi, ' + (save.name || 'Max') + '!';
+    PCQuest.welcome();   // first visit after the v3.0 update: medals for old high scores + a hello
+    drawSign();
+    $('hub-level').innerHTML = PCQuest.hubHTML();
     var bank = '';
     ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
     $('hub-bank').innerHTML = bank;
@@ -252,6 +258,18 @@
     var all = CABINETS.concat(PCCab.list().map(function (d) {
       return { id: d.id, cls: d.id, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
     }));
+    all.push({ id: 'mystery', cls: 'mystery', name: 'Mystery Box', blurb: 'A surprise game — and it pays DOUBLE XP!', start: function () { PCQuest.mystery(); }, best: null,
+      thumb: function (g, w, h) {
+        var d = tex.blocks[TILE.STONE].top;
+        for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(d, x, y, 16, 16);
+        g.fillStyle = 'rgba(10,6,16,0.6)'; g.fillRect(0, 0, w, h);
+        // a taped-up wooden crate with a question mark stencilled on it
+        g.fillStyle = '#0c080f'; g.fillRect(15, 7, 34, 34);
+        g.drawImage(tex.blocks[TILE.PLANKS].top, 0, 0, 16, 16, 16, 8, 32, 32);
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(16, 36, 32, 4); g.fillRect(44, 8, 4, 32);
+        g.fillStyle = '#8a5ad6'; g.fillRect(16, 21, 32, 6); g.fillStyle = '#b48cf0'; g.fillRect(16, 21, 32, 2);
+        PCTex.drawText(g, '?', 32 - Math.round(PCTex.textWidth('?', 3) / 2), 14, 3, '#ffe680', '#000');
+      } });
     all.forEach(function (c) {
       var card = document.createElement('button'); card.className = 'cab-card ' + c.cls;
       var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
@@ -260,7 +278,8 @@
       card.appendChild(cv);
       var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
       var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
-      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = 'BEST ' + c.best(); card.appendChild(best);
+      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = c.best ? 'BEST ' + c.best() : '2× XP'; card.appendChild(best);
+      PCQuest.decorate(card, c.id);
       card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
       box.appendChild(card);
     });
@@ -286,11 +305,12 @@
   $('hub-pet').addEventListener('click', function () {
     if (!hubPet) return;
     if (hubPet.on) { A.unlock(); hubPet.bark(Math.random() < 0.3 ? 'YIP!' : 'WOOF!'); hubPet.hop(); A.buzz(10); }
-    else { A.play('click'); toast('Adopt a wolf on the Hero screen!'); show('hero'); }
+    else { A.play('click'); toast('Pick a pet on the Hero screen!'); show('hero'); }
   });
   $('hub-arcade').addEventListener('click', function () { A.unlock(); A.play('click'); arcadeThen = null; show('arcade'); });
   $('hub-craft').addEventListener('click', function () { A.play('click'); craftThen = null; show('craft'); });
   $('hub-hero').addEventListener('click', function () { A.play('click'); show('hero'); });
+  $('hub-level').addEventListener('click', function () { A.play('click'); show('quests'); });
   $('hub-settings').addEventListener('click', function () { A.play('click'); show('settings'); });
 
   // ================= play / level select =================
@@ -371,7 +391,7 @@
   }
   function startAdventure(n, carry) {
     var level = Wd.makeLevel(n, seedFor(n));
-    session = { mode: 'adventure', levelNum: n, game: newGame(level, n, carry) };
+    session = { mode: 'adventure', levelNum: n, game: newGame(level, n, carry), t0: performance.now(), score0: carry ? (carry.score || 0) : 0 };
     save.stats.games++; persist();
     beginSession();
   }
@@ -488,6 +508,8 @@
     var html = '<div class="line"><span>Score</span><span>' + g.score + '</span></div>';
     html += '<div class="line"><span>Ores found</span></div><div class="ores">' + oreSummary(g.orestaken) + '</div>';
     if (best) html += '<div class="best">★ New best score! ★</div>';
+    var earned = questReport(false, best);
+    if (earned) html += PCQuest.resultHTML(earned);
     if (session.mode === 'adventure') {
       var nx = session.levelNum + 1;
       if (nx > save.maxLevel) save.maxLevel = nx;
@@ -501,6 +523,7 @@
     persist(true);
     $('clear-stats').innerHTML = html;
     $('ov-clear').hidden = false;
+    if (earned && earned.level) PCQuest.celebrate(earned);
   }
   function onGameOver() {
     var g = session.game;
@@ -511,9 +534,18 @@
     html += '<div class="line"><span>Best</span><span class="best">' + save.best + '</span></div>';
     html += '<div class="line"><span>Ores found</span></div><div class="ores">' + oreSummary(g.orestaken) + '</div>';
     if (best) html += '<div class="best">★ New best score! ★</div>';
+    var earned = questReport(true, best);
+    if (earned) html += PCQuest.resultHTML(earned);
     html += '<div class="hint">Your ores are saved. Craft upgrades to get stronger!</div>';
     $('over-stats').innerHTML = html;
     $('ov-over').hidden = false;
+    if (earned && earned.level) PCQuest.celebrate(earned);
+  }
+  // PacCraft adventure levels pay into the Arcade Level too (custom mazes don't, so they can't be farmed)
+  function questReport(final, best) {
+    if (!session || session.mode !== 'adventure') return null;
+    var g = session.game, secs = (performance.now() - (session.t0 || performance.now())) / 1000;
+    return PCQuest.report({ game: 'paccraft', score: g.score, ores: g.orestaken, seconds: secs, final: final, newBest: best });
   }
   $('btn-next').addEventListener('click', function () {
     A.play('click');
@@ -970,7 +1002,8 @@
   var HAT_COST = { knight: { iron: 6 }, crown: { gold: 6 }, diamond: { diamond: 5 }, ember: { ember: 3 } };
   var PETS = [
     { id: 'none', name: 'No pet' },
-    { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' }
+    { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' },
+    { id: 'fox', name: 'Fox', lvl: 3 }, { id: 'panda', name: 'Panda Pup', lvl: 7 }, { id: 'ember', name: 'Ember Hound', lvl: 12 }, { id: 'crystal', name: 'Crystal Wolf', lvl: 18 }
   ];
   var heroT = 0;
   function renderHero() {
@@ -1004,8 +1037,16 @@
       var b = document.createElement('button'); b.className = 'sw' + ((save.look.pet || 'none') === pet.id ? ' active' : '');
       b.title = pet.name;
       if (pet.id === 'none') b.innerHTML = '<span style="font-size:11px;font-weight:900;line-height:48px">NONE</span>';
-      else b.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.wolf(save.look.shirt).right[1], 3) + ')';
+      else b.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.wolf(save.look.shirt, pet.id).right[1], 3) + ')';
       var owned = (save.pets || ['none']).indexOf(pet.id) >= 0;
+      if (!owned && pet.lvl) {   // pets earned by levelling up
+        if (PCQuest.level() >= pet.lvl) { save.pets.push(pet.id); owned = true; persist(); }
+        else {
+          b.innerHTML = '<span class="lock">LV ' + pet.lvl + '</span>';
+          b.addEventListener('click', function () { A.play('nope'); toast('Reach Arcade Level ' + pet.lvl + ' to unlock the ' + pet.name + '!'); });
+          pb.appendChild(b); return;
+        }
+      }
       if (!owned && pet.cost) {
         var keys = Object.keys(pet.cost);
         b.innerHTML = '<span class="lock">' + keys.map(function (k) { return img(ICON.ore[k]) + pet.cost[k]; }).join(' ') + '</span>';
@@ -1049,7 +1090,7 @@
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(32, 56, 16, 5, 0, 0, 7); g.fill();
     g.drawImage(set[v][f], 8, 6, 48, 48);
     if (save.look.pet && save.look.pet !== 'none') {
-      var pw = PCTex.wolf(save.look.shirt), pv = v === 'up' ? 'up' : (v === 'down' ? 'down' : v);
+      var pw = PCTex.wolf(save.look.shirt, save.look.pet), pv = v === 'up' ? 'up' : (v === 'down' ? 'down' : v);
       g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(v === 'left' ? 50 : 14, 57, 10, 3, 0, 0, 7); g.fill();
       g.drawImage(pw[pv][1 + Math.floor(heroT * 5) % 2], v === 'left' ? 36 : 0, 30, 28, 28);
     }
@@ -1165,6 +1206,7 @@
       [scene(function (g) { g.drawImage(tex.food.apple, 2, 6, 14, 14); g.drawImage(tex.heart[1], 18, 10); }), 'Snacks', 'Food pops up under the monster cage. Eat it for points and a heart.'],
       [scene(function (g) { var ic = new Image(); ic.src = ICON.craft; g.drawImage(PCTex.cubeIcon(tex.blocks[TILE.PLANKS], 32), 0, 0); }), 'Crafting Table', 'Spend your ores on better pickaxes, speedy boots, extra hearts, TNT and more.'],
       [scene(function (g) { g.drawImage(tex.blocks[TILE.STONE].top, 0, 0, 16, 16, 0, 8, 16, 16); g.drawImage(tex.tnt[0], 16, 6, 16, 16); }), 'Lucky Mine', 'Between levels, bet some ores on Boom Blocks or Ore Slots. You might strike it rich… or go BOOM. Feeling lucky?'],
+      [scene(function (g) { g.drawImage(tex.blocks[TILE.GOLD].top, 0, 8); g.drawImage(PCTex.wolf('#d8322b', 'fox').right[1], 16, 8, 16, 16); }), 'Level up!', 'Every game in the arcade earns XP. Level up to open reward chests and unlock new pets, win medals on every cabinet, and check the Quest Book for 3 new quests every day.'],
       [scene(function (g) { g.drawImage(PCTex.cubeIcon(tex.blocks[TILE.GRASS], 32), 0, 0); }), 'Build your own', 'Make your own maze in Build mode, then play it and show your friends!']
     ];
     items.forEach(function (it) {
@@ -1182,8 +1224,15 @@
   buildIcons();
   applySettings();
   drawLogo();
-  drawSign();
+  function allGames() { return [{ id: 'paccraft', name: 'PacCraft' }].concat(PCCab.list().map(function (d) { return { id: d.id, name: d.name }; })); }
+  PCQuest.init({
+    save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img, modal: modal,
+    show: function (id) { show(id); }, games: allGames,
+    startGame: function (id) { if (id === 'paccraft') show('title'); else PCCab.start(id); }
+  });
   PCCab.setApi({
+    quest: function (r) { var out = PCQuest.report(r); out.html = PCQuest.resultHTML(out); return out; },
+    celebrate: function (out) { PCQuest.celebrate(out); },
     save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img,
     show: function (id) { show(id); }, back: function () { show('hub', true); },
     addOre: function (k, n) { save.ores[k] = (save.ores[k] || 0) + n; persist(); },
@@ -1204,7 +1253,7 @@
     var bar = document.createElement('div');
     bar.id = 'update-bar'; bar.className = 'update-bar'; bar.hidden = true;
     bar.setAttribute('role', 'status');
-    bar.innerHTML = '<img alt="" src="' + ICON.crystal + '"><span><b>Update ready!</b><small>New stuff for PacCraft</small></span>' +
+    bar.innerHTML = '<img alt="" src="' + ICON.crystal + '"><span><b>Update ready!</b><small>New stuff for Blockcade</small></span>' +
       '<button class="btn btn-sm btn-green" id="btn-update">Update</button><button class="upd-x" id="btn-update-later" aria-label="Later">✕</button>';
     $('app').appendChild(bar);
     $('btn-update').addEventListener('click', applyUpdate);
@@ -1244,5 +1293,5 @@
       }).catch(function () { });
     });
   }
-  window.PacCraft = { cab: PCCab, updateReady: function () { return updateReady; }, save: function () { return save; }, session: function () { return session; }, show: show, startAdventure: startAdventure, renderer: renderer, VERSION: VERSION };
+  window.PacCraft = { quest: PCQuest, cab: PCCab, updateReady: function () { return updateReady; }, save: function () { return save; }, session: function () { return session; }, show: show, startAdventure: startAdventure, renderer: renderer, VERSION: VERSION };
 })();

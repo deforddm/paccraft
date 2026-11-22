@@ -138,7 +138,7 @@ var PCCab = (function () {
       look: save.look,
       pet: PCPet.make(save.look, function (n) { api.A.play(n); })
     };
-    cur = { def: def, inst: def.create(ctx), running: true, paused: false, over: false, score: 0, ores: {} };
+    cur = { def: def, inst: def.create(ctx), running: true, paused: false, over: false, score: 0, ores: {}, time: 0, hi0: save.hi[id] || 0 };
     ctx.addOre = function (k, n) { api.addOre(k, n); cur.ores[k] = (cur.ores[k] || 0) + n; refreshOres(); };
     cur.inst.ctx = ctx;
     // controls layout
@@ -166,7 +166,7 @@ var PCCab = (function () {
   function loop(now) {
     if (!cur) return;
     var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
-    if (!cur.paused && !cur.over) cur.inst.update(dt);
+    if (!cur.paused && !cur.over) { cur.time += dt; cur.inst.update(dt); }
     if (g) {
       g.setTransform(view.scale, 0, 0, view.scale, 0, 0); g.imageSmoothingEnabled = false;
       cur.inst.draw(g, view.w, view.h, dt);
@@ -206,11 +206,15 @@ var PCCab = (function () {
     var ok = Object.keys(cur.ores).filter(function (k) { return cur.ores[k] > 0; });
     h += '<div class="line"><span>Ores found</span></div><div class="ores">' + (ok.length ? ok.map(function (k) { return '<span>' + api.img(api.ICON.ore[k]) + ' ×' + cur.ores[k] + '</span>'; }).join('') : '<span style="color:var(--muted)">None this time</span>') + '</div>';
     if (cur.score > 0 && cur.score >= (save.hi[id] || 0)) h += '<div class="best">★ New best score! ★</div>';
+    // Arcade Level: XP, medals and quests for this run
+    var earned = api.quest ? api.quest({ game: id, score: cur.score, ores: cur.ores, seconds: cur.time, final: true, newBest: cur.score > 0 && cur.score > cur.hi0 }) : null;
+    if (earned) h += earned.html;
     $('cab-over-stats').innerHTML = h;
     $('cab-over-title').textContent = info.title || (info.win ? 'You Win!' : 'Game Over');
     $('cab-over-title').className = info.win ? 'win' : 'lose';
     $('cab-over').hidden = false;
     api.persist(true);
+    if (earned && earned.level) api.celebrate(earned);
   }
   function restart() { if (!cur) return; var id = cur.def.id; start(id); }
   function quit() { stop(); api.A.stopMusic(); api.back(); }

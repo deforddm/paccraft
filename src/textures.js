@@ -328,9 +328,17 @@ var PCTex = (function () {
 
   // ---------------- pet wolf (cosmetic) ----------------
   // frames: 0 = stand, 1/2 = trot, 3 = sit (used when the hero stands still)
-  function wolfSprite(view, frame, collar) {
+  // kind picks the coat: the wolf, or one of the pets unlocked by levelling up
+  var PET_COATS = {
+    wolf: ['#c3c8d2', '#98a1af', '#eef1f7', '#2b2b36'],
+    fox: ['#e8862e', '#b85f1c', '#fff1dc', '#2b2b36'],
+    panda: ['#f4f4f6', '#2b2b36', '#ffffff', '#15151c'],
+    ember: ['#4a3238', '#2c1c22', '#ff8a1f', '#ffd23b'],
+    crystal: ['#8fe3f2', '#4fb2cf', '#e9fbff', '#1b3a5c']
+  };
+  function wolfSprite(view, frame, collar, kind) {
     var c = mk(16, 16), P = painter(c);
-    var fur = '#c3c8d2', furD = '#98a1af', furL = '#eef1f7', dark = '#2b2b36';
+    var coat = PET_COATS[kind] || PET_COATS.wolf, fur = coat[0], furD = coat[1], furL = coat[2], dark = coat[3];
     collar = collar || '#d8322b';
     var sit = frame === 3, trot = frame === 1 || frame === 2, lift = frame === 2 ? 1 : 0;
     if (view === 'side') {
@@ -370,13 +378,13 @@ var PCTex = (function () {
     return outline(c);
   }
   var wolfCache = {};
-  function wolf(collar) {
-    var key = collar || 'x';
+  function wolf(collar, kind) {
+    var key = (collar || 'x') + '|' + (PET_COATS[kind] ? kind : 'wolf');
     if (wolfCache[key]) return wolfCache[key];
     var set = { down: [], up: [], right: [], left: [] };
     for (var f = 0; f < 4; f++) {
-      set.down.push(wolfSprite('down', f, collar)); set.up.push(wolfSprite('up', f, collar));
-      var s = wolfSprite('side', f, collar); set.right.push(s); set.left.push(flipX(s));
+      set.down.push(wolfSprite('down', f, collar, kind)); set.up.push(wolfSprite('up', f, collar, kind));
+      var s = wolfSprite('side', f, collar, kind); set.right.push(s); set.left.push(flipX(s));
     }
     wolfCache[key] = set;
     return set;

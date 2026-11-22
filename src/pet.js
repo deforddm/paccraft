@@ -7,7 +7,7 @@ var PCPet = (function () {
 
   function make(look, fx) {
     var on = !!(look && look.pet && look.pet !== 'none');
-    var set = on ? PCTex.wolf(look.shirt) : null;
+    var set = on ? PCTex.wolf(look.shirt, look.pet) : null;
     var p = { on: on, set: set, x: 0, y: 0, dir: 3, anim: 0, idle: 9, trail: [], barkT: 0, barkText: 'WOOF!', hopT: 0, time: 0, wagT: 0 };
 
     p.reset = function (x, y, dir) { p.x = x; p.y = y; p.trail.length = 0; p.trail.push({ x: x, y: y }); p.idle = 9; p.anim = 0; if (dir != null) p.dir = dir; };
