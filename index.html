@@ -25,6 +25,7 @@
       <canvas id="hub-sign" class="hub-sign" aria-label="Blockcade"></canvas>
       <div class="tagline">A blocky mash-up arcade</div>
       <div class="hub-top"><div class="hello-row"><canvas id="hub-pet" class="hub-pet" width="56" height="48" aria-label="Your wolf"></canvas><div class="hello" id="hub-hello">Hi, Max!</div></div><div class="hub-bank" id="hub-bank"></div></div>
+      <button class="hub-level" id="hub-level" aria-label="Arcade level and quests"></button>
       <div class="cabinets" id="cabinets"></div>
       <div class="menu-row hub-row">
         <button class="btn btn-gold" id="hub-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button>
@@ -261,6 +262,12 @@
     </div>
   </section>
 
+  <!-- ================= QUEST BOOK ================= -->
+  <section id="screen-quests" class="screen">
+    <header class="bar"><button class="btn btn-sm back" data-back>◀</button><h2>Quest Book</h2><span></span></header>
+    <div class="scroll quest-body" id="quest-body"></div>
+  </section>
+
   <!-- ================= HELP ================= -->
   <section id="screen-help" class="screen">
     <header class="bar"><button class="btn btn-sm back" data-back>◀</button><h2>How to Play</h2><span></span></header>
@@ -271,6 +278,7 @@
   <div class="modal" id="modal" hidden>
     <div class="card"><h2 id="modal-title"></h2><p id="modal-text"></p><div class="menu-row" id="modal-btns"></div></div>
   </div>
+  <div class="overlay lvlup" id="lvlup" hidden></div>
   <div class="toast" id="toast" hidden></div>
 </div>
 <!-- END APP -->
@@ -281,6 +289,7 @@
 <script src="src/render.js"></script>
 <script src="src/builder.js"></script>
 <script src="src/pet.js"></script>
+<script src="src/quest.js"></script>
 <script src="src/cab.js"></script>
 <script src="src/games/breaker.js"></script>
 <script src="src/games/digger.js"></script>

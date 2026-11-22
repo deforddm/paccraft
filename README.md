@@ -25,6 +25,18 @@ Each cabinet keeps its own best score. Ores earned anywhere spend anywhere — a
 
 **The wolf** — once adopted on the Hero screen (5 gold + 3 iron), Max's wolf tags along in every cabinet: trotting behind the hero, running under the paddle, waiting on the creek bank, chasing the snake's tail, cheering beside the stack. Tap it on the arcade sign to make it bark. It never touches gameplay.
 
+## Level Up (v3.0)
+
+One **Arcade Level** runs across the whole arcade.
+
+- **XP** — every finished run pays XP: for playing, for play time (up to +60), for a new best score, for medals and for quests. PacCraft adventure levels pay on Level Clear and Game Over. The game-over card shows the breakdown.
+- **Level-ups** — each level opens a reward chest (2 coal + 1 iron; gold on even levels, a diamond every 5, ember every 10) with a confetti party. Ranks: Dirt Digger → Stone Scout (5) → Iron Miner (10) → Gold Hunter (15) → Diamond Ace (20) → Emberite Legend (30).
+- **New pets** — Fox (Level 3), Panda Pup (7), Ember Hound (12), Crystal Wolf (18). They are free at their level, picked on the Hero screen, and tag along in every cabinet just like the wolf. At Level 10 the BLOCKCADE sign turns gold.
+- **Medals** — Bronze / Silver / Gold on every cabinet for hitting score targets. Old high scores count the first time v3.0 opens.
+- **Daily quests** — three new ones each day (try a game, hit a score in another, and an any-game goal), with ore + XP rewards, a bonus diamond for finishing all three, and a day streak. Cabinets with an open quest wear a QUEST ribbon.
+- **Quest Book** — tap the level bar on the hub: level, today's quests (GO jumps to the game), what unlocks next, and the medal wall.
+- **Mystery Box** — the last card on the hub starts a random cabinet at double XP.
+
 ## PacCraft
 
 ## How it plays
@@ -98,7 +110,8 @@ src/games/skyguard.js Sky Guard
 src/games/meteor.js   Meteor Miner
 src/games/minecart.js Minecart Rush
 src/games/bonk.js     Bonk-a-Mob
-src/pet.js            the wolf companion helper used by every cabinet
+src/pet.js            the pet companion helper used by every cabinet
+src/quest.js          Level Up: Arcade Level + XP, reward chests, medals, daily quests, Quest Book, Mystery Box
 src/world.js          blocks, biomes, seeded RNG, symmetric maze generator, custom levels
 src/game.js           rules + simulation: movement, monster AI, digging, blocks, TNT, power, scoring
 src/textures.js       all pixel art, drawn in code (blocks, hero, monsters, items, icons, bitmap font)
@@ -111,6 +124,7 @@ sw.js                 service worker (offline) — bump CACHE on every release
 manifest.webmanifest  PWA manifest
 icons/                app icons (rendered from the game's own art: npm run icons)
 tests/sim.test.js     maze invariants (560 mazes) + long headless play simulations
+tests/quest.test.js   Level Up rules: XP curve, chests, medals, quests
 tests/bot.js          balance bot: clear rates per difficulty
 tools/build.js        builds dist/blockcade.html and dist/artifact.html
 ```
@@ -119,7 +133,7 @@ No framework and no build step needed to run it. Node is only used for tests and
 
 ## Updating the hosted game
 
-1. Change files, then `node tests/sim.test.js` and `node tools/build.js`.
+1. Change files, then `npm test` and `node tools/build.js`.
 2. Bump the version in **two** places: `CACHE` in `sw.js` (e.g. `paccraft-v1.1.1`) and `VERSION` in `src/app.js` (shown in Settings).
 3. Upload to the repo **in this order**: `src/` → `dist/` → root files, with `sw.js` last (so phones never cache a half-uploaded release). GitHub Pages redeploys in about a minute.
 4. On the phone: next time PacCraft is opened online it downloads the update in the background and shows an **Update ready!** button on the menus (hidden during play). Tap **Update** → it saves progress, switches to the new version and reloads. Saved ores, upgrades, hats and built levels are kept (they live in the phone's browser storage, tied to the site address — don't rename the repo).
@@ -131,6 +145,7 @@ Versions shipped before the button existed (v1.0.0, listed in `LEGACY` in `sw.js
 - Speeds, hearts, power-up length, monster release timing, scatter/chase phases and pickaxe speeds (`PICK_SPEED`): the top of `src/game.js`.
 - Crafting recipes and costs: `RECIPES` in `src/app.js`. Hat prices: `HAT_COST`.
 - Worlds, block mixes and ore rates: `BIOMES` in `src/world.js`.
+- Level Up: medal scores (`MEDALS`), XP curve (`need`), chests (`chest`), unlock levels (`UNLOCKS`) and quest rewards (`roll`) at the top of `src/quest.js`.
 
 ## Credits
 

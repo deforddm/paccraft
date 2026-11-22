@@ -1,10 +1,10 @@
 {
   "name": "paccraft",
-  "version": "2.2.0",
-  "description": "Blockcade — a blocky mash-up arcade for phones: PacCraft, Cheetah Dash, Tunnel Trouble, Block Breaker.",
+  "version": "3.0.0",
+  "description": "Blockcade — a blocky mash-up arcade for phones: 16 cabinets, one Arcade Level, daily quests and medals.",
   "private": true,
   "scripts": {
-    "test": "node tests/sim.test.js",
+    "test": "node tests/sim.test.js && node tests/quest.test.js",
     "bot": "node tests/bot.js",
     "build": "node tools/build.js",
     "icons": "node tools/make-icons.js",
