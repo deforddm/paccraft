@@ -14,7 +14,7 @@ ok(g && g.from === 1 && g.to === 3 && P.xp === 5, 'double level-up');
 ok(g.ores.coal === 4 && g.ores.iron === 2 && g.ores.gold === 1, 'chests merged');
 ok(g.unlocks.some(u => u.pet === 'fox'), 'fox at 3');
 P = R.blank(); g = R.gain(P, 1e7); ok(P.lvl === 99 && P.xp === 0, 'level cap'); ok(R.gain(P, 50) === null, 'no xp past cap');
-ok(g.unlocks.filter(u => u.pet).length === 4 && g.unlocks.filter(u => u.rank).length === 5, 'all unlocks on the way up');
+ok(g.unlocks.filter(u => u.pet).length === 6 && g.unlocks.filter(u => u.rank).length === 5, 'all unlocks on the way up');
 // quests: deterministic per day, three of them, distinct games for the first two
 for (let d = 1; d <= 60; d++) {
   const key = '2026-12-' + d, a = R.roll(key, games, {}, {}), b = R.roll(key, games, {}, {});
