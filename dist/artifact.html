@@ -413,6 +413,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mr-best { grid-area: best; font-size: 11px; font-weight: 900; color: var(--gold); text-align: right; }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } .lvup-num, .cab-ribbon, .lvcard { animation: none; } .xpbar i { transition: none; } }
 
+/* ---------- v4.0: 48 cabinets — specials row, floor tabs, marathon ---------- */
+.hub-tabs { width: 100%; display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; flex: none; }
+.hub-tabs::-webkit-scrollbar { display: none; }
+.hub-tab { flex: none; font-family: var(--head); font-size: 13px; color: var(--muted); background: #2a2230; border: 3px solid var(--line); border-radius: 6px; padding: 7px 10px; text-shadow: 1px 1px 0 #000; }
+.hub-tab small { font-family: var(--body); font-weight: 900; font-size: 11px; color: var(--muted); opacity: 0.8; }
+.hub-tab.active { color: #3a2a04; text-shadow: none; background: linear-gradient(#fbd54c, #e0b020); box-shadow: inset 2px 2px 0 #fff0a0, inset -2px -3px 0 #9c7410; }
+.hub-tab.active small { color: #3a2a04; }
+.cab-card.marathon { border-color: #ff8a1f; } .cab-card.marathon .cab-best { color: #ff8a1f; }
+.cab-card.cat-action { border-color: #ff7a6a; } .cab-card.cat-skill { border-color: #7df9ff; } .cab-card.cat-puzzle { border-color: #e36bff; } .cab-card.cat-brain { border-color: #7dff8a; }
+.cab-ribbon.new { background: #7dff8a; animation: none; }
+.xpbox.marbox { border-color: #ff8a1f; }
+.marbox .ores { display: flex; gap: 10px; justify-content: center; font-weight: 900; }
+.marbox .ores span { display: inline-flex; align-items: center; gap: 3px; } .marbox .ores img { width: 18px; height: 18px; image-rendering: pixelated; }
+
 </style>
 <div id="app">
 
@@ -423,6 +437,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
       <div class="tagline">A blocky mash-up arcade</div>
       <div class="hub-top"><div class="hello-row"><canvas id="hub-pet" class="hub-pet" width="56" height="48" aria-label="Your wolf"></canvas><div class="hello" id="hub-hello">Hi, Max!</div></div><div class="hub-bank" id="hub-bank"></div></div>
       <button class="hub-level" id="hub-level" aria-label="Arcade level and quests"></button>
+      <div class="cabinets hub-specials" id="hub-specials"></div>
+      <div class="hub-tabs" id="hub-tabs"></div>
       <div class="cabinets" id="cabinets"></div>
       <div class="menu-row hub-row">
         <button class="btn btn-gold" id="hub-arcade"><span class="ico" data-ico="arcade"></span>Lucky Mine</button>
@@ -1982,7 +1998,9 @@ var PCTex = (function () {
     fox: ['#e8862e', '#b85f1c', '#fff1dc', '#2b2b36'],
     panda: ['#f4f4f6', '#2b2b36', '#ffffff', '#15151c'],
     ember: ['#4a3238', '#2c1c22', '#ff8a1f', '#ffd23b'],
-    crystal: ['#8fe3f2', '#4fb2cf', '#e9fbff', '#1b3a5c']
+    crystal: ['#8fe3f2', '#4fb2cf', '#e9fbff', '#1b3a5c'],
+    golden: ['#f7c936', '#c4901a', '#fff3a8', '#5a3a08'],
+    shadow: ['#3a3450', '#221d33', '#8a5ad6', '#e36bff']
   };
   function wolfSprite(view, frame, collar, kind) {
     var c = mk(16, 16), P = painter(c);
@@ -3198,6 +3216,8 @@ var PCQuest = (function () {
   'use strict';
   var api = null;          // filled by app.js: { save, persist, A, ICON, img, toast, modal, show, games, startGame }
   var bonus = null;        // game id that pays double XP on its next finished run (Mystery Box)
+  var mar = null;          // Arcade Marathon in progress: { list: [{id, name}], i, pts: [], total }
+  var MAR_N = 5, MAR_SECS = 60;
   var ORES = ['coal', 'iron', 'gold', 'diamond', 'ember'];
   var MAX_LEVEL = 99;
 
@@ -3210,13 +3230,15 @@ var PCQuest = (function () {
   };
   var TIER = ['', 'Bronze', 'Silver', 'Gold'], TIER_XP = [0, 30, 60, 120];
   var RANKS = [[1, 'Dirt Digger'], [5, 'Stone Scout'], [10, 'Iron Miner'], [15, 'Gold Hunter'], [20, 'Diamond Ace'], [30, 'Emberite Legend']];
-  var PET_NAMES = { wolf: 'Wolf', fox: 'Fox', panda: 'Panda Pup', ember: 'Ember Hound', crystal: 'Crystal Wolf' };
+  var PET_NAMES = { wolf: 'Wolf', fox: 'Fox', panda: 'Panda Pup', ember: 'Ember Hound', crystal: 'Crystal Wolf', golden: 'Golden Pup', shadow: 'Shadow Wolf' };
   var UNLOCKS = [
     { lvl: 3, pet: 'fox', text: 'New pet: the Fox!' },
     { lvl: 7, pet: 'panda', text: 'New pet: the Panda Pup!' },
     { lvl: 10, sign: true, text: 'The BLOCKCADE sign turns to solid gold!' },
     { lvl: 12, pet: 'ember', text: 'New pet: the Ember Hound!' },
-    { lvl: 18, pet: 'crystal', text: 'New pet: the Crystal Wolf!' }
+    { lvl: 18, pet: 'crystal', text: 'New pet: the Crystal Wolf!' },
+    { lvl: 25, pet: 'golden', text: 'New pet: the Golden Pup!' },
+    { lvl: 35, pet: 'shadow', text: 'New pet: the Shadow Wolf!' }
   ];
 
   // ---------- pure rules ----------
@@ -3316,6 +3338,17 @@ var PCQuest = (function () {
     if (r.final && bonus && bonus === r.game) add('Mystery Box ×2', base + time, 'gold');
     if (r.final) bonus = null;
     if (r.newBest) add('New best score', 20);
+    // Arcade Marathon: each game is worth up to 100 points (score measured against its Gold medal)
+    if (mar && r.final && mar.list[mar.i] && mar.list[mar.i].id === r.game) {
+      var gold = (MEDALS[r.game] || [0, 0, 1000])[2], mp = Math.min(100, Math.round((r.score || 0) / gold * 100));
+      mar.pts.push(mp); mar.total += mp;
+      out.mar = { i: mar.i + 1, n: mar.list.length, pts: mp, total: mar.total, done: mar.i + 1 >= mar.list.length, next: mar.list[mar.i + 1] ? mar.list[mar.i + 1].name : null };
+      if (out.mar.done) {
+        add('Marathon finished', 40 + Math.round(mar.total / 4), 'gold');
+        var prize = { coal: 1 + Math.floor(mar.total / 60) }; if (mar.total >= 120) prize.iron = 1; if (mar.total >= 200) prize.gold = 1; if (mar.total >= 320) prize.diamond = 1;
+        grant(prize); out.mar.prize = prize; out.mar.best = Math.max(P.marBest || 0, mar.total); out.mar.record = mar.total > (P.marBest || 0); P.marBest = out.mar.best; P.marRuns = (P.marRuns || 0) + 1;
+      }
+    }
     var T = P.today, found = 0;
     Object.keys(r.ores || {}).forEach(function (k) { found += r.ores[k] || 0; });
     T.plays[r.game] = (T.plays[r.game] || 0) + 1;
@@ -3356,8 +3389,29 @@ var PCQuest = (function () {
     var h = '<div class="xpbox"><div class="xphead"><span class="lvbadge">LV ' + out.lvl + '</span><span class="xptot">+' + out.xp + ' XP</span></div>';
     h += bar(out.cur, out.need) + '<div class="xpnote">' + (out.lvl >= MAX_LEVEL ? 'Max level!' : out.cur + ' / ' + out.need + ' XP to Level ' + (out.lvl + 1)) + '</div>';
     out.parts.forEach(function (p) { h += '<div class="xpline ' + p[2] + '"><span>' + p[0] + '</span><span>+' + p[1] + '</span></div>'; });
-    return h + '</div>';
+    h += '</div>';
+    if (out.mar) {
+      var m = out.mar;
+      h += '<div class="xpbox marbox"><div class="xphead"><span class="lvbadge">MARATHON ' + m.i + '/' + m.n + '</span><span class="xptot">' + m.pts + ' pts</span></div>' + bar(m.total, m.n * 100) +
+        '<div class="xpnote">Total ' + m.total + ' / ' + m.n * 100 + '</div>' +
+        (m.done ? '<div class="xpline gold"><span>' + (m.record ? '★ New marathon record! ★' : 'Marathon complete! Best ' + m.best) + '</span></div><div class="ores">' + oreRow(m.prize) + '</div>'
+          : '<div class="xpline"><span>Up next</span><span>' + m.next + '</span></div>') + '</div>';
+    }
+    return h;
   }
+
+  // ---------- Arcade Marathon: five random quick games, 60 seconds each ----------
+  function marathonStart() {
+    var pool = api.games().filter(function (g) { return g.mar; }), list = [];
+    while (list.length < MAR_N && pool.length) list.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    mar = { list: list, i: 0, pts: [], total: 0 }; bonus = null;
+    api.toast('Marathon! ' + MAR_N + ' games, ' + MAR_SECS + ' seconds each', 2600);
+    api.startGame(list[0].id);
+  }
+  // what the cabinet should do for this game: null (normal play) or { limit, label }
+  function marathonFor(id) { return mar && mar.list[mar.i] && mar.list[mar.i].id === id ? { limit: MAR_SECS, label: (mar.i + 1) + '/' + mar.list.length } : null; }
+  // after a marathon game's game-over card: id of the next game, or null when the marathon is finished
+  function marathonNext() { if (!mar) return null; mar.i++; if (mar.i >= mar.list.length) { mar = null; return null; } return mar.list[mar.i].id; }
 
   // ---------- level-up party ----------
   function celebrate(out) {
@@ -3383,10 +3437,11 @@ var PCQuest = (function () {
       '<small>' + (P.lvl >= MAX_LEVEL ? 'Max level!' : P.xp + ' / ' + need(P.lvl) + ' XP') + '</small></span>' +
       '<span class="hl-q' + (done === 3 ? ' all' : '') + '"><b>' + done + '/3</b><small>QUESTS</small>' + (st > 1 ? '<em>' + st + ' days!</em>' : '') + '</span>';
   }
-  function decorate(card, id) {       // medals + QUEST ribbon on a hub cabinet card
+  function decorate(card, id, isNew) {       // medals + QUEST / NEW ribbon on a hub cabinet card
     var P = prog(); ensureDay(P);
     if (MEDALS[id]) { var m = document.createElement('div'); m.className = 'cab-medals'; m.innerHTML = pips(P.medals[id] || 0); card.appendChild(m); }
     if (P.quests.some(function (q) { return q.game === id && !q.done; })) { var r = document.createElement('div'); r.className = 'cab-ribbon'; r.textContent = 'QUEST'; card.appendChild(r); }
+    else if (isNew && !allPlays()[id]) { var n = document.createElement('div'); n.className = 'cab-ribbon new'; n.textContent = 'NEW'; card.appendChild(n); }
   }
   function mystery() {                // the Mystery Box card: a random cabinet at double XP
     var list = api.games().filter(function (g) { return g.id !== 'paccraft'; });
@@ -3397,10 +3452,16 @@ var PCQuest = (function () {
   }
   // first visit after the update: hand out medals already earned, then say hello
   function welcome() {
-    var P = prog(); if (P.intro) return;
+    var P = prog();
+    if (P.intro && P.intro !== 4) {   // already met Level Up: just announce the v4.0 arcade
+      P.intro = 4; api.persist(true);
+      api.modal('48 GAMES!', 'The arcade just tripled: 32 brand-new cabinets — action, skill, puzzle and brain games. Use the tabs to find them (look for the NEW ribbons), try the Arcade Marathon for 5 random games in a row, and level up to meet the Golden Pup and the Shadow Wolf.', [{ label: 'Let\'s go!', cls: 'btn-gold btn-sm' }]);
+      return;
+    }
+    if (P.intro) return;
     var bests = allBests(), n = 0;
     Object.keys(MEDALS).forEach(function (id) { var t = tierFor(id, bests[id] || 0); if (t > (P.medals[id] || 0)) { n += t - (P.medals[id] || 0); P.medals[id] = t; } });
-    P.intro = true; api.persist(true);
+    P.intro = 4; api.persist(true);
     api.modal('LEVEL UP!', 'New in the arcade: every game now earns XP for your Arcade Level. Level up to open reward chests and unlock new pets, win Bronze, Silver and Gold medals on every cabinet, and finish 3 new quests every day.' +
       (n ? ' Your old high scores already earned you ' + n + ' medal' + (n === 1 ? '' : 's') + '!' : ''),
       [{ label: 'Show me!', cls: 'btn-gold btn-sm', fn: function () { api.show('quests'); } }, { label: 'Play', cls: 'btn-green btn-sm' }]);
@@ -3446,7 +3507,8 @@ var PCQuest = (function () {
   function init(a) { api = a; prog(); }
   return {
     init: init, report: report, resultHTML: resultHTML, celebrate: celebrate, hubHTML: hubHTML, decorate: decorate, mystery: mystery, welcome: welcome, render: render,
-    level: function () { return prog().lvl; }, clearBonus: function () { bonus = null; }, bonus: function () { return bonus; },
+    level: function () { return prog().lvl; }, clearBonus: function () { bonus = null; mar = null; }, bonus: function () { return bonus; },
+    marathonStart: marathonStart, marathonFor: marathonFor, marathonNext: marathonNext, marathon: function () { return mar; }, marBest: function () { return prog().marBest || 0; },
     MEDALS: MEDALS, PET_NAMES: PET_NAMES, UNLOCKS: UNLOCKS,
     _: { need: need, rank: rank, chest: chest, tierFor: tierFor, roll: roll, gain: gain, blank: blank, questProgress: questProgress, dayKey: dayKey }
   };
@@ -3597,6 +3659,7 @@ var PCCab = (function () {
     cur = { def: def, inst: def.create(ctx), running: true, paused: false, over: false, score: 0, ores: {}, time: 0, hi0: save.hi[id] || 0 };
     ctx.addOre = function (k, n) { api.addOre(k, n); cur.ores[k] = (cur.ores[k] || 0) + n; refreshOres(); };
     cur.inst.ctx = ctx;
+    cur.mar = api.marathonFor ? api.marathonFor(id) : null;   // Arcade Marathon: time limit + "2/5" label
     // controls layout
     var c = def.controls || {};
     $('cab-controls').hidden = !c.dpad && !c.a && !c.b;
@@ -3605,7 +3668,8 @@ var PCCab = (function () {
     $('cab-a').hidden = !c.a; $('cab-b').hidden = !c.b;
     $('cab-a').querySelector('span').textContent = c.a || ''; $('cab-b').querySelector('span').textContent = c.b || '';
     $('cab-a').className = 'act act-a' + (c.aClass ? ' ' + c.aClass : ''); $('cab-b').className = 'act act-b';
-    $('cab-title').textContent = def.name;
+    $('cab-title').textContent = (cur.mar ? cur.mar.label + ' ' : '') + def.name;
+    $('cab-again').textContent = 'Play Again'; $('cab-menu').textContent = 'Back to Arcade';
     $('cab-hi').textContent = 'BEST ' + (save.hi[id] || 0);
     setScore(0); refreshOres();
     $('cab-pause').hidden = true; $('cab-over').hidden = true;
@@ -3622,7 +3686,14 @@ var PCCab = (function () {
   function loop(now) {
     if (!cur) return;
     var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
-    if (!cur.paused && !cur.over) { cur.time += dt; cur.inst.update(dt); }
+    if (!cur.paused && !cur.over) {
+      cur.time += dt; cur.inst.update(dt);
+      if (cur.mar && !cur.over) {
+        var leftS = Math.max(0, Math.ceil(cur.mar.limit - cur.time));
+        if (leftS !== cur.marShown) { cur.marShown = leftS; $('cab-hi').textContent = 'TIME ' + leftS; }
+        if (cur.time >= cur.mar.limit) gameOver({ win: true, title: "Time's Up!" });
+      }
+    }
     if (g) {
       g.setTransform(view.scale, 0, 0, view.scale, 0, 0); g.imageSmoothingEnabled = false;
       cur.inst.draw(g, view.w, view.h, dt);
@@ -3633,7 +3704,7 @@ var PCCab = (function () {
     if (!cur) return;
     cur.score = n; $('cab-score').textContent = n;
     var save = api.save(), id = cur.def.id;
-    if (n > (save.hi[id] || 0)) { save.hi[id] = n; $('cab-hi').textContent = 'BEST ' + n; }
+    if (n > (save.hi[id] || 0)) { save.hi[id] = n; if (!cur.mar) $('cab-hi').textContent = 'BEST ' + n; }
   }
   function refreshOres() {
     var save = api.save(), s = '';
@@ -3667,12 +3738,14 @@ var PCCab = (function () {
     if (earned) h += earned.html;
     $('cab-over-stats').innerHTML = h;
     $('cab-over-title').textContent = info.title || (info.win ? 'You Win!' : 'Game Over');
+    cur.marNext = !!(earned && earned.mar && !earned.mar.done);
+    if (earned && earned.mar) { $('cab-again').textContent = earned.mar.done ? 'Play Again' : 'Next Game ▶'; if (!earned.mar.done) $('cab-menu').textContent = 'Quit Marathon'; }
     $('cab-over-title').className = info.win ? 'win' : 'lose';
     $('cab-over').hidden = false;
     api.persist(true);
     if (earned && earned.level) api.celebrate(earned);
   }
-  function restart() { if (!cur) return; var id = cur.def.id; start(id); }
+  function restart() { if (!cur) return; var id = cur.def.id; if (cur.over && cur.marNext) id = api.marathonNext() || id; start(id); }
   function quit() { stop(); api.A.stopMusic(); api.back(); }
 
   function init() {
@@ -7070,10 +7143,1718 @@ PCCab.register((function () {
 })());
 
 
+/* Blockcade — PCMini: a small framework for the v4.0 cabinets. A game hands reg() a definition
+ * and a make(c) function; the framework owns the things every cabinet shares — score, hearts,
+ * level, an optional countdown clock, banner messages, particles, the pet in the corner, the
+ * HUD strip, and turning cab input events into simple hooks (tap / drag / up / dir / a / b).
+ *
+ * def: { id, name, blurb, cat: 'action'|'skill'|'puzzle'|'brain', medals: [bronze, silver, gold],
+ *        w, h, music, controls, lives (0 = no hearts), clock (seconds, optional), pet: [x, y],
+ *        thumb(g, w, h, tex, T), make(c) → { update(dt), draw(g), tap, drag, up, dir, a, aUp, b, lines } } */
+var PCMini = (function () {
+  'use strict';
+  var ORE_ODDS = ['coal', 'coal', 'iron', 'iron', 'gold', 'diamond', 'ember'];
+
+  function make(d, ctx) {
+    var W = d.w || 320, H = d.h || 420, tex = ctx.tex, T = window.PCWorld.TILE, K = PCCab.kit(), heroSet = PCTex.hero(ctx.look), game;
+    var c = {
+      W: W, H: H, tex: tex, T: T, K: K, ctx: ctx, score: 0, lives: d.lives == null ? 3 : d.lives, level: 1, time: 0, done: false,
+      msg: null, shake: 0, dir: -1, dx: 0, dy: 0, a: false, b: false, tx: W / 2, ty: H / 2, touching: false, clock: d.clock || 0, clockMax: d.clock || 0
+    };
+    c.rnd = function (a, b) { return a + Math.random() * (b - a); };
+    c.ri = function (n) { return Math.floor(Math.random() * n); };
+    c.pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
+    c.clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
+    c.shuffle = function (a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+    c.fx = function (n, data) { ctx.fx(n, data); };
+    c.buzz = function (p) { ctx.buzz(p); };
+    c.add = function (n, x, y, col) { n = Math.round(n); if (n <= 0) return; c.score += n; ctx.score(c.score); if (x != null) K.pop(x, y, '+' + n, col); };
+    c.oreRoll = function () { return ORE_ODDS[Math.min(6, Math.floor(Math.random() * (2.5 + c.level * 0.8)))]; };
+    c.ore = function (kind, x, y) { kind = kind || c.oreRoll(); ctx.addOre(kind, 1); K.pop(x == null ? W / 2 : x, y == null ? H / 2 : y, '+1 ' + kind.toUpperCase(), '#ffe680'); ctx.fx('mined', { tile: T.STONE, drop: kind }); ctx.buzz(15); ctx.pet.bark(); };
+    c.say = function (text, sub, t) { c.msg = { text: text, sub: sub, t: t || 1.6 }; };
+    c.end = function (win, title, lines) {
+      if (c.done) return; c.done = true;
+      if (win) ctx.pet.bark('WOOF!');
+      ctx.over({ win: !!win, title: title, lines: (lines || []).concat(game && game.lines ? game.lines() : []).concat([['Level reached', c.level]]) });
+    };
+    // lose a heart; returns true when that ended the game
+    c.hit = function (x, y) {
+      if (c.done) return true;
+      c.lives--; c.shake = 0.3; ctx.fx('shieldhit'); ctx.buzz([40, 30, 40]);
+      K.burst(x == null ? W / 2 : x, y == null ? H / 2 : y, '#ff7a6a', 14, 180);
+      if (c.lives <= 0) { c.end(false); return true; }
+      return false;
+    };
+    c.levelUp = function (quiet) { c.level++; ctx.addOre('coal', 1); if (!quiet) c.say('LEVEL ' + c.level); ctx.fx('extralife'); ctx.pet.hop(); };
+    c.text = function (g, s, x, y, sz, col) { PCTex.drawText(g, String(s), Math.round(x), Math.round(y), sz || 1, col || '#fff', '#000'); };
+    c.ctext = function (g, s, cx, y, sz, col) { s = String(s); c.text(g, s, cx - PCTex.textWidth(s, sz || 1) / 2, y, sz, col); };
+    c.block = function (g, tile, x, y, s, h) { g.drawImage(tex.blocks[tile].top, 0, 0, 16, 16, Math.round(x), Math.round(y), s, h || s); };
+    c.fill = function (g, tile, x, y, w, h, s) { s = s || 16; for (var yy = y; yy < y + h; yy += s) for (var xx = x; xx < x + w; xx += s) g.drawImage(tex.blocks[tile].top, 0, 0, 16, 16, xx, yy, s, s); };
+    c.mon = function (g, kind, x, y, s, face) { g.drawImage(tex.mons[kind][Math.floor(c.time * 5) % 2], Math.round(x), Math.round(y), s, s); PCTex.drawEyes(g, Math.round(x), Math.round(y), s / 16, face == null ? 2 : face, kind === 'fright'); };
+    c.hero = function (g, x, y, s, view, frame) { g.drawImage(heroSet[view || 'down'][frame || 0], Math.round(x), Math.round(y), s, s); };
+    c.gold = function (g, x, y, s) { g.fillStyle = '#9c7410'; g.fillRect(x, y, s, s); g.fillStyle = '#f7c936'; g.fillRect(x, y, s - 3, s - 3); g.fillStyle = '#fff0a0'; g.fillRect(x, y, s - 3, 3); g.fillRect(x, y, 3, s - 3); };
+    c.oreIcon = function (g, kind, x, y, s) { g.drawImage(tex.ores[kind], Math.round(x), Math.round(y), s, s); };
+    c.oreTile = function (kind) { return T[kind.toUpperCase()]; };
+    game = d.make(c);
+
+    return {
+      S: c, game: game,
+      start: function () { ctx.fx('ready'); },
+      update: function (dt) {
+        c.time += dt; K.tick(dt);
+        if (c.msg && (c.msg.t -= dt) <= 0) c.msg = null;
+        if (c.shake > 0) c.shake -= dt;
+        ctx.pet.sit(dt);
+        if (c.done) return;
+        if (c.clockMax) { c.clock -= dt; if (c.clock <= 0) { c.clock = 0; c.end(false, 'Time Up!'); return; } }
+        game.update(dt);
+      },
+      draw: function (g) {
+        g.save();
+        if (c.shake > 0) g.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+        game.draw(g);
+        K.draw(g);
+        g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 22);
+        if (d.lives !== 0) K.hearts(g, tex, Math.max(0, c.lives), 5, 4);
+        if (c.clockMax) {
+          var f = Math.min(1, c.clock / c.clockMax), bx = d.lives !== 0 ? 92 : 8, bw = W - bx - 122;
+          g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(bx, 7, bw, 8); g.fillStyle = c.clock < 10 ? '#ff7a6a' : '#5ef0a8'; g.fillRect(bx, 7, bw * f, 8);
+          var cs = String(Math.ceil(c.clock)); c.text(g, cs, W - 76 - PCTex.textWidth(cs, 2), 5, 2);
+        }
+        c.text(g, 'LV ' + c.level, W - PCTex.textWidth('LV ' + c.level, 2) - 5, 5, 2, '#ffe680');
+        var pp = d.pet || [W - 18, H - 3]; ctx.pet.draw(g, pp[0], pp[1], 20, 1);
+        K.banner(g, W, H, c.msg, Math.round(H / 2) - 30);
+        g.restore();
+      },
+      input: function (e) {
+        if (e.type === 'dir') { c.dir = e.dir; c.dx = e.dx; c.dy = e.dy; if (e.dir >= 0 && game.dir && !c.done) game.dir(e.dir); }
+        else if (e.type === 'a') { c.a = e.down; if (c.done) return; if (e.down && game.a) game.a(); if (!e.down && game.aUp) game.aUp(); }
+        else if (e.type === 'b') { c.b = e.down; if (e.down && game.b && !c.done) game.b(); }
+        else if (e.type === 'touch') {
+          if (e.phase === 'down') { c.touching = true; c.tx = e.x; c.ty = e.y; c.sx = e.x; c.sy = e.y; if (game.tap && !c.done) game.tap(e.x, e.y); }
+          else if (e.phase === 'move') { var px = c.tx, py = c.ty; c.tx = e.x; c.ty = e.y; if (game.drag && !c.done) game.drag(e.x, e.y, px, py); }
+          else { c.touching = false; if (game.up && !c.done) game.up(c.tx, c.ty); }
+        }
+      }
+    };
+  }
+  // swipe helper: direction (0 up, 1 left, 2 down, 3 right) of a finished drag, or -1 for a tap
+  function swipe(c, min) { var dx = c.tx - c.sx, dy = c.ty - c.sy; if (Math.hypot(dx, dy) < (min || 14)) return -1; return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0); }
+
+  function reg(d) {
+    PCQuest.MEDALS[d.id] = d.medals;
+    PCCab.register({
+      id: d.id, name: d.name, blurb: d.blurb, cat: d.cat, isNew: true, view: { w: d.w || 320, h: d.h || 420 }, music: d.music || 'meadow',
+      controls: d.controls || { dpad: false, a: null, b: null },
+      thumb: function (g, w, h, tex) { d.thumb(g, w, h, tex, window.PCWorld.TILE); },
+      create: function (ctx) { return make(d, ctx); }
+    });
+  }
+  return { reg: reg, swipe: swipe, DX: [0, -1, 0, 1], DY: [-1, 0, 1, 0] };
+})();
+
+
+/* Blockcade v4.0 — action pack 1: Bat Flap, Slime Pong, Sky Swarm, Lava Leap, Desert Run, Ore Rain. */
+(function () {
+  'use strict';
+  var R = PCMini.reg;
+
+  // ---------- Bat Flap: flap a cave bat through the gaps in the stone pillars ----------
+  R({
+    id: 'batflap', name: 'Bat Flap', cat: 'action', medals: [100, 300, 700], music: 'caves',
+    blurb: 'Tap to flap! Squeeze a cave bat through the gaps in the stone pillars.',
+    controls: { dpad: false, a: 'FLAP', b: null }, pet: [22, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#1b1822'; g.fillRect(0, 0, w, h);
+      [[14, 14], [42, 28]].forEach(function (p) { for (var y = 0; y < h; y += 8) if (y < p[1] - 2 || y > p[1] + 14) g.drawImage(tex.blocks[T.STONE].top, 0, 0, 16, 16, p[0], y, 10, 8); });
+      g.fillStyle = '#6b4a9c'; g.fillRect(26, 20, 8, 6); g.fillRect(20, 17, 6, 4); g.fillRect(34, 17, 6, 4); g.fillStyle = '#fff'; g.fillRect(28, 21, 1, 2); g.fillRect(31, 21, 1, 2);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, BX = 70, y = 200, vy = 0, pipes = [], sp = 0.4, inv = 0, passed = 0, wait = 1.2;
+      function flap() { if (wait > 0.4) return; vy = -215; c.fx('hop'); }
+      function crash() { if (!c.hit(BX, y)) { inv = 1.6; y = 200; vy = -150; } }
+      return {
+        tap: flap, a: flap, lines: function () { return [['Pillars passed', passed]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; return; }
+          var v = 92 + c.level * 12;
+          vy += 580 * dt; y += vy * dt; if (inv > 0) inv -= dt;
+          sp -= dt;
+          if (sp <= 0) { sp = 150 / v + c.rnd(0, 0.25); var gap = Math.max(92, 132 - c.level * 6); pipes.push({ x: W + 20, gy: c.rnd(40, H - 50 - gap), gap: gap, done: false, ore: Math.random() < 0.25 ? c.oreRoll() : null }); }
+          pipes.forEach(function (p) {
+            p.x -= v * dt;
+            if (!p.done && p.x + 24 < BX - 8) { p.done = true; passed++; c.add(10, BX, y - 14); c.fx('gem'); if (passed % 8 === 0) c.levelUp(); }
+            if (p.ore && Math.abs(p.x + 12 - BX) < 16 && Math.abs(y - (p.gy + p.gap / 2)) < 20) { c.ore(p.ore, BX, y - 12); p.ore = null; }
+            if (inv <= 0 && p.x < BX + 8 && p.x + 24 > BX - 8 && (y - 6 < p.gy || y + 6 > p.gy + p.gap)) crash();
+          });
+          pipes = pipes.filter(function (p) { return p.x > -40; });
+          if (y > H - 14) { y = H - 14; vy = 0; if (inv <= 0) crash(); }
+          if (y < 28) { y = 28; vy = 0; }
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          g.fillStyle = '#241c2c'; for (var i = 0; i < 8; i++) g.fillRect((i * 97 - c.time * 20) % (W + 40) + (i * 97 - c.time * 20 < 0 ? W + 40 : 0) - 20, 60 + (i * 53) % 300, 30, 14);
+          pipes.forEach(function (p) {
+            for (var yy = p.gy - 16; yy > 6; yy -= 16) c.block(g, T.STONE, p.x, yy, 24, 16);
+            for (var y2 = p.gy + p.gap; y2 < H; y2 += 16) c.block(g, T.STONE, p.x, y2, 24, 16);
+            c.block(g, T.COBBLE, p.x - 2, p.gy - 10, 28, 10); c.block(g, T.COBBLE, p.x - 2, p.gy + p.gap, 28, 10);
+            if (p.ore) c.oreIcon(g, p.ore, p.x + 4, p.gy + p.gap / 2 - 8 + Math.sin(c.time * 5) * 2, 16);
+          });
+          c.fill(g, T.BASALT, 0, H - 8, W, 8, 16);
+          if (inv > 0 && Math.floor(c.time * 12) % 2) return;
+          var up = vy < 0 || Math.floor(c.time * 8) % 2;
+          g.fillStyle = '#4a3370'; g.fillRect(BX - 14, y + (up ? -7 : 1), 9, 5); g.fillRect(BX + 5, y + (up ? -7 : 1), 9, 5);
+          g.fillStyle = '#6b4a9c'; g.fillRect(BX - 6, y - 5, 12, 10); g.fillRect(BX - 5, y - 8, 3, 3); g.fillRect(BX + 2, y - 8, 3, 3);
+          g.fillStyle = '#fff'; g.fillRect(BX - 3, y - 2, 2, 3); g.fillRect(BX + 2, y - 2, 2, 3);
+        }
+      };
+    }
+  });
+
+  // ---------- Slime Pong: bat the slime past Rumble's paddle ----------
+  R({
+    id: 'pong', name: 'Slime Pong', cat: 'action', medals: [300, 1200, 3500], music: 'meadow',
+    blurb: 'Bounce the slime past Rumble at the top. Drag to slide your plank.',
+    controls: { dpad: 'lr', a: null, b: null },
+    thumb: function (g, w, h, tex, T) {
+      for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.GRASS].top, x, y);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(0, 23, w, 2);
+      g.drawImage(tex.blocks[T.PLANKS].top, 0, 0, 16, 5, 30, 40, 22, 5); g.drawImage(tex.mons.rumble[0], 12, 2, 12, 12); g.fillStyle = '#5ef0a8'; g.fillRect(36, 20, 6, 6);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, px = W / 2, cx = W / 2, b = { x: W / 2, y: H / 2, vx: 0, vy: 0 }, wait = 1, pts = 0, PY = H - 34, CY = 48;
+      function serve(dir) { var a = c.rnd(-0.6, 0.6), s = 175 + c.level * 14; b.x = W / 2; b.y = H / 2; b.vx = Math.sin(a) * s; b.vy = dir * Math.cos(a) * s; wait = 0.9; }
+      serve(1);
+      return {
+        lines: function () { return [['Points won', pts]]; },
+        update: function (dt) {
+          if (c.dir === 1) px -= 250 * dt; if (c.dir === 3) px += 250 * dt;
+          if (c.touching) px += (c.tx - px) * Math.min(1, dt * 18);
+          px = c.clamp(px, 28, W - 28);
+          var ms = (72 + c.level * 15) * dt, tg = b.vy < 0 ? b.x : W / 2; cx += c.clamp(tg - cx, -ms, ms); cx = c.clamp(cx, 28, W - 28);
+          if (wait > 0) { wait -= dt; return; }
+          b.x += b.vx * dt; b.y += b.vy * dt;
+          if (b.x < 6) { b.x = 6; b.vx = Math.abs(b.vx); } if (b.x > W - 6) { b.x = W - 6; b.vx = -Math.abs(b.vx); }
+          if (b.vy > 0 && b.y >= PY - 5 && b.y <= PY + 8 && Math.abs(b.x - px) < 32) { b.vy = -Math.abs(b.vy) * 1.04; b.vx += (b.x - px) * 4; b.y = PY - 5; c.add(5); c.fx('bonk'); }
+          if (b.vy < 0 && b.y <= CY + 5 && b.y >= CY - 8 && Math.abs(b.x - cx) < 32) { b.vy = Math.abs(b.vy) * 1.04; b.vx += (b.x - cx) * 3; b.y = CY + 5; c.fx('hop'); }
+          b.vx = c.clamp(b.vx, -270, 270); b.vy = c.clamp(b.vy, -430, 430);
+          if (b.y < 24) { pts++; c.add(100 * c.level, W / 2, 90, '#ffe680'); c.fx('crystal'); if (pts % 3 === 0) { c.levelUp(); c.ore(null, W / 2, 130); } serve(1); }
+          else if (b.y > H + 6) { if (!c.hit(b.x, H - 20)) serve(-1); }
+        },
+        draw: function (g) {
+          c.fill(g, T.GRASS, 0, 0, W, H, 32); g.fillStyle = 'rgba(0,0,0,0.42)'; g.fillRect(0, 0, W, H);
+          g.fillStyle = 'rgba(255,255,255,0.3)'; for (var x = 4; x < W; x += 24) g.fillRect(x, H / 2 - 1, 12, 3);
+          c.block(g, T.COBBLE, cx - 28, CY - 5, 56, 10); c.mon(g, 'rumble', cx - 10, CY - 24, 20, b.x < cx ? 1 : 3);
+          c.block(g, T.PLANKS, px - 28, PY, 56, 10); c.hero(g, px - 10, PY + 8, 20, 'up', 0);
+          g.fillStyle = '#2f8a5a'; g.fillRect(b.x - 7, b.y - 7, 14, 14); g.fillStyle = '#5ef0a8'; g.fillRect(b.x - 6, b.y - 6, 12, 12); g.fillStyle = '#123'; g.fillRect(b.x - 4, b.y - 2, 2, 3); g.fillRect(b.x + 2, b.y - 2, 2, 3);
+        }
+      };
+    }
+  });
+
+  // ---------- Sky Swarm: monsters hang in formation, then dive at you ----------
+  R({
+    id: 'swarm', name: 'Sky Swarm', cat: 'action', medals: [1500, 5000, 12000], music: 'crystal',
+    blurb: 'A swarm of monsters hovers overhead and dives at you. Dodge and keep shooting!',
+    controls: { dpad: 'lr', a: null, b: null }, pet: [18, 417],
+    thumb: function (g, w, h, tex) {
+      g.fillStyle = '#0d0b1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; [[5, 6], [50, 12], [30, 3], [58, 30]].forEach(function (s) { g.fillRect(s[0], s[1], 1, 1); });
+      ['frost', 'sly', 'mudge'].forEach(function (k, i) { g.drawImage(tex.mons[k][0], 8 + i * 18, 6, 12, 12); }); g.drawImage(tex.mons.rumble[0], 40, 24, 12, 12);
+      g.fillStyle = '#ffe680'; g.fillRect(31, 30, 2, 5); g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).up[0], 24, 35, 14, 14);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, px = W / 2, PY = H - 46, shots = [], en = [], drops = [], fireT = 0, diveT = 2, inv = 0, kills = 0;
+      var KINDS = ['rumble', 'frost', 'sly', 'mudge'];
+      function wave() {
+        en = []; var rows = Math.min(5, 2 + Math.floor(c.level / 2));
+        for (var r = 0; r < rows; r++) for (var i = 0; i < 6; i++) en.push({ hx: 50 + i * 44, hy: 52 + r * 30, x: 50 + i * 44, y: -30 - r * 20, kind: KINDS[r % 4], dive: false, t: 0, sx: 0, hp: r === 0 && c.level > 2 ? 2 : 1 });
+        diveT = 1.8;
+      }
+      wave();
+      return {
+        lines: function () { return [['Monsters zapped', kills]]; },
+        update: function (dt) {
+          if (c.dir === 1) px -= 230 * dt; if (c.dir === 3) px += 230 * dt;
+          if (c.touching) px += (c.tx - px) * Math.min(1, dt * 16);
+          px = c.clamp(px, 14, W - 14); if (inv > 0) inv -= dt;
+          fireT -= dt; if (fireT <= 0) { fireT = 0.3; shots.push({ x: px, y: PY - 8 }); }
+          var off = Math.sin(c.time * 1.2) * 18;
+          diveT -= dt;
+          if (diveT <= 0) { var idle = en.filter(function (e) { return !e.dive && e.y >= e.hy - 1; }); if (idle.length) { var d = c.pick(idle); d.dive = true; d.t = 0; d.sx = d.x; c.fx('hop'); } diveT = Math.max(0.55, 2.2 - c.level * 0.16); }
+          en.forEach(function (e) {
+            if (!e.dive) { e.x = e.hx + off; e.y += Math.min(e.hy - e.y, 160 * dt); return; }
+            e.t += dt; e.y += (115 + c.level * 10) * dt; e.x = e.sx + Math.sin(e.t * 4) * 46 + (px - e.sx) * Math.min(1, e.t * 0.45);
+            if (e.y > H + 20) { e.dive = false; e.y = -20; }
+            if (inv <= 0 && Math.abs(e.x - px) < 16 && Math.abs(e.y - PY) < 16) { e.dead = true; if (!c.hit(px, PY)) inv = 1.4; }
+          });
+          shots.forEach(function (s) {
+            s.y -= 340 * dt;
+            en.forEach(function (e) {
+              if (s.dead || e.dead || Math.abs(e.x - s.x) > 13 || Math.abs(e.y - s.y) > 13) return;
+              s.dead = true; if (--e.hp > 0) { c.fx('hit'); return; }
+              e.dead = true; kills++; c.add((e.dive ? 40 : 20) * c.level, e.x, e.y - 10); c.K.burst(e.x, e.y, '#c9ccd4', 8); c.fx('bonk');
+              if (Math.random() < 0.07) drops.push({ x: e.x, y: e.y, kind: c.oreRoll() });
+            });
+          });
+          shots = shots.filter(function (s) { return !s.dead && s.y > 20; });
+          en = en.filter(function (e) { return !e.dead; });
+          drops.forEach(function (o) { o.y += 95 * dt; if (Math.abs(o.x - px) < 18 && Math.abs(o.y - PY) < 18) { o.dead = true; c.ore(o.kind, px, PY - 20); } });
+          drops = drops.filter(function (o) { return !o.dead && o.y < H + 10; });
+          if (!en.length && !c.done) { c.levelUp(); wave(); }
+        },
+        draw: function (g) {
+          g.fillStyle = '#0d0b1e'; g.fillRect(0, 0, W, H);
+          g.fillStyle = '#fff'; for (var i = 0; i < 40; i++) g.fillRect((i * 83) % W, (i * 47 + c.time * (10 + i % 3 * 12)) % H, 1 + i % 2, 1 + i % 2);
+          en.forEach(function (e) { c.mon(g, e.kind, e.x - 11, e.y - 11, 22, e.dive ? 2 : -1); if (e.hp > 1) { g.fillStyle = 'rgba(247,201,54,0.45)'; g.fillRect(e.x - 11, e.y - 11, 22, 22); } });
+          g.fillStyle = '#ffe680'; shots.forEach(function (s) { g.fillRect(s.x - 1, s.y - 6, 3, 10); });
+          drops.forEach(function (o) { c.oreIcon(g, o.kind, o.x - 8, o.y - 8, 16); });
+          if (!(inv > 0 && Math.floor(c.time * 12) % 2)) { g.fillStyle = '#8b8b96'; g.fillRect(px - 13, PY + 6, 26, 6); c.hero(g, px - 11, PY - 12, 22, 'up', Math.floor(c.time * 6) % 2 + 1); }
+        }
+      };
+    }
+  });
+
+  // ---------- Lava Leap: bounce up the platforms, don't fall into the lava ----------
+  R({
+    id: 'lavaleap', name: 'Lava Leap', cat: 'action', medals: [150, 500, 1200], music: 'lava',
+    blurb: 'Bounce higher and higher up the blocks. Slide your finger to steer. Mind the crumbly sand!',
+    controls: { dpad: 'lr', a: null, b: null }, pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#2a1420'; g.fillRect(0, 0, w, h);
+      [[6, 38, T.GRASS], [34, 26, T.SAND], [12, 12, T.ICE]].forEach(function (p) { g.drawImage(tex.blocks[p[2]].top, 0, 0, 16, 5, p[0], p[1], 22, 5); });
+      g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).right[1], 36, 10, 14, 14); for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.MAGMA].top, 0, 0, 16, 5, x, 44, 16, 5);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, p = { x: W / 2, y: 388, vx: 0, vy: -400 }, plats = [{ x: 0, y: 390, w: W, kind: 'norm' }], cam = 0, topY = 390, best = 0, face = 3;
+      function gen() {
+        while (topY > cam - 80) {
+          topY -= c.rnd(40, Math.min(84, 54 + c.level * 4)); var r = Math.random();
+          plats.push({ x: c.rnd(8, W - 60), y: topY, w: 50, kind: r < 0.12 + c.level * 0.02 ? 'move' : r < 0.3 + c.level * 0.02 ? 'crumble' : 'norm', vx: c.pick([-50, 50]), ore: Math.random() < 0.07 ? c.oreRoll() : null });
+        }
+      }
+      gen();
+      return {
+        lines: function () { return [['Height', best + ' m']]; },
+        update: function (dt) {
+          var tv = c.dir === 1 ? -180 : c.dir === 3 ? 180 : 0;
+          if (c.touching) tv = c.clamp((c.tx - p.x) * 7, -210, 210);
+          p.vx += (tv - p.vx) * Math.min(1, dt * 10); if (Math.abs(p.vx) > 8) face = p.vx > 0 ? 3 : 1;
+          p.x += p.vx * dt; if (p.x < -8) p.x = W + 8; if (p.x > W + 8) p.x = -8;
+          var py = p.y; p.vy += 640 * dt; p.y += p.vy * dt;
+          plats.forEach(function (pl) {
+            if (pl.kind === 'move') { pl.x += pl.vx * dt; if (pl.x < 4 || pl.x + pl.w > W - 4) pl.vx = -pl.vx; }
+            if (pl.dead) return;
+            if (p.vy > 0 && py <= pl.y && p.y >= pl.y && p.x + 7 > pl.x && p.x - 7 < pl.x + pl.w) { p.y = pl.y; p.vy = -400; c.fx('hop'); if (pl.kind === 'crumble') { pl.dead = true; c.K.burst(pl.x + 25, pl.y, '#e3d29a', 10, 90); c.fx('crumble'); } }
+            if (pl.ore && Math.abs(p.x - (pl.x + pl.w / 2)) < 18 && Math.abs(p.y - 12 - (pl.y - 16)) < 20) { c.ore(pl.ore, p.x, p.y - cam - 30); pl.ore = null; }
+          });
+          if (p.y - cam < 170) cam = p.y - 170;
+          var hgt = Math.floor(-cam / 10);
+          if (hgt > best) { c.add(hgt - best); best = hgt; if (best >= c.level * 120) c.levelUp(); }
+          gen();
+          plats = plats.filter(function (pl) { return pl.y < cam + H + 40 && !(pl.dead && pl.y > p.y + 40); });
+          if (p.y - cam > H + 24) {
+            if (!c.hit(p.x, H - 30)) { var lo = null; plats.forEach(function (pl) { if (!pl.dead && pl.y < cam + H - 60 && (!lo || pl.y > lo.y)) lo = pl; }); if (lo) { p.x = lo.x + lo.w / 2; p.y = lo.y - 1; } else { p.y = cam + 200; } p.vy = -420; p.vx = 0; }
+          }
+        },
+        draw: function (g) {
+          var gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#1a1430'); gr.addColorStop(1, '#4a1a18'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+          plats.forEach(function (pl) {
+            if (pl.dead) return; var y = pl.y - cam, tile = pl.kind === 'move' ? T.ICE : pl.kind === 'crumble' ? T.SAND : T.GRASS;
+            for (var x = pl.x; x < pl.x + pl.w - 1; x += 10) c.block(g, tile, x, y, Math.min(10, pl.x + pl.w - x), 8);
+            g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(pl.x, y + 8, pl.w, 2);
+            if (pl.ore) c.oreIcon(g, pl.ore, pl.x + pl.w / 2 - 8, y - 22 + Math.sin(c.time * 5) * 2, 16);
+          });
+          c.hero(g, p.x - 11, p.y - cam - 22, 22, face === 3 ? 'right' : 'left', p.vy < 0 ? 1 : 2);
+          for (var x = 0; x < W; x += 16) c.block(g, T.MAGMA, x, H - 10 + Math.sin(c.time * 3 + x) * 2, 16, 12);
+          c.text(g, best + ' M', 6, 26, 2, '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Desert Run: endless runner with a double jump ----------
+  R({
+    id: 'dunerun', name: 'Desert Run', cat: 'action', medals: [200, 600, 1500], music: 'desert',
+    blurb: 'Run the dunes! Tap to jump the cactus, tap again in the air for a double jump.',
+    controls: { dpad: false, a: 'JUMP', b: null }, pet: [22, 346],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#ffcf87'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff3c4'; g.fillRect(44, 6, 10, 10);
+      for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.SAND].top, x, 36);
+      g.fillStyle = '#2f8a3a'; g.fillRect(44, 22, 5, 14); g.fillRect(40, 26, 4, 3); g.fillRect(49, 24, 4, 3); g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).right[1], 12, 16, 16, 16);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, GY = 330, HX = 58, y = 0, vy = 0, jumps = 0, obs = [], sp = 1.2, dist = 0, sc = 0, inv = 0;
+      function jump() { if (jumps < 2) { vy = jumps ? -300 : -345; jumps++; c.fx('hop'); } }
+      return {
+        tap: jump, a: jump, lines: function () { return [['Distance', Math.floor(dist / 10) + ' m']]; },
+        update: function (dt) {
+          var v = 150 + c.level * 18;
+          vy += 920 * dt; y += vy * dt; if (y > 0) { y = 0; vy = 0; jumps = 0; }
+          if (inv > 0) inv -= dt;
+          dist += v * dt; var ns = Math.floor(dist / 20); if (ns > sc) { c.add(ns - sc); sc = ns; }
+          if (dist > c.level * 2600) c.levelUp();
+          sp -= dt;
+          if (sp <= 0) {
+            sp = c.rnd(0.85, 1.6) * Math.max(0.6, 1 - c.level * 0.04); var r = Math.random();
+            if (r < 0.2) obs.push({ x: W + 20, kind: 'ore', w: 16, h: c.rnd(46, 92), ore: c.oreRoll() });
+            else obs.push({ x: W + 20, kind: 'cactus', w: r < 0.6 ? 14 : 28, h: r < 0.82 ? 26 : 40 });
+          }
+          obs.forEach(function (o) {
+            o.x -= v * dt; if (o.x > HX + 10 || o.x + o.w < HX - 8) return;
+            if (o.kind === 'ore') { if (Math.abs((GY + y - 12) - (GY - o.h)) < 22) { o.dead = true; c.ore(o.ore, HX, GY + y - 34); } }
+            else if (inv <= 0 && GY + y > GY - o.h + 4) { if (!c.hit(HX, GY + y - 10)) inv = 1.3; }
+          });
+          obs = obs.filter(function (o) { return !o.dead && o.x > -40; });
+        },
+        draw: function (g) {
+          var gr = g.createLinearGradient(0, 0, 0, GY); gr.addColorStop(0, '#ff9a5a'); gr.addColorStop(1, '#ffe2a8'); g.fillStyle = gr; g.fillRect(0, 0, W, GY);
+          g.fillStyle = '#fff3c4'; g.fillRect(230, 60, 34, 34);
+          g.fillStyle = '#e0a868'; for (var i = 0; i < 4; i++) { var dx = ((i * 130 - dist * 0.3) % 520 + 520) % 520 - 100; g.fillRect(dx, GY - 40, 110, 40); g.fillRect(dx + 20, GY - 58, 70, 18); }
+          for (var x = -(dist % 16); x < W; x += 16) { c.block(g, T.SAND, x, GY, 16); c.block(g, T.SANDSTONE, x, GY + 16, 16); }
+          c.fill(g, T.SANDSTONE, 0, GY + 32, W, H - GY - 32, 16);
+          obs.forEach(function (o) {
+            if (o.kind === 'ore') { c.oreIcon(g, o.ore, o.x, GY - o.h - 8 + Math.sin(c.time * 5) * 2, 16); return; }
+            g.fillStyle = '#1f6b2a'; g.fillRect(o.x, GY - o.h, o.w, o.h); g.fillStyle = '#2f8a3a'; g.fillRect(o.x + 2, GY - o.h + 2, o.w - 5, o.h - 2);
+            g.fillStyle = '#1f6b2a'; g.fillRect(o.x - 5, GY - o.h + 10, 5, 4); g.fillRect(o.x + o.w, GY - o.h + 6, 5, 4);
+          });
+          if (!(inv > 0 && Math.floor(c.time * 12) % 2)) c.hero(g, HX - 12, GY + y - 24, 24, 'right', y < 0 ? 1 : 1 + Math.floor(c.time * 10) % 2);
+          c.text(g, Math.floor(dist / 10) + ' M', 6, 26, 2, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Ore Rain: catch the falling ore in a minecart, dodge the TNT ----------
+  R({
+    id: 'orerain', name: 'Ore Rain', cat: 'action', medals: [500, 2000, 6000], music: 'caves',
+    blurb: 'It is raining ore! Roll your minecart under it. Do not catch the TNT.',
+    controls: { dpad: 'lr', a: null, b: null }, pet: [18, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#241c2c'; g.fillRect(0, 0, w, h);
+      g.drawImage(tex.ores.gold, 10, 6, 10, 10); g.drawImage(tex.ores.diamond, 40, 14, 10, 10); g.drawImage(tex.tnt[0], 26, 2, 10, 10);
+      g.fillStyle = '#8b8b96'; g.fillRect(20, 34, 24, 9); g.fillStyle = '#3a3a44'; g.fillRect(22, 43, 4, 3); g.fillRect(38, 43, 4, 3);
+      for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.COBBLE].top, 0, 0, 16, 3, x, 46, 16, 3);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, px = W / 2, PY = H - 40, items = [], sp = 0.8, caught = 0, combo = 0;
+      var PTS = { coal: 10, iron: 20, gold: 40, diamond: 80, ember: 150 };
+      return {
+        lines: function () { return [['Ore caught', caught]]; },
+        update: function (dt) {
+          if (c.dir === 1) px -= 260 * dt; if (c.dir === 3) px += 260 * dt;
+          if (c.touching) px += (c.tx - px) * Math.min(1, dt * 18);
+          px = c.clamp(px, 22, W - 22);
+          sp -= dt;
+          if (sp <= 0) { sp = Math.max(0.28, 0.85 - c.level * 0.055) * c.rnd(0.7, 1.3); items.push({ x: c.rnd(16, W - 16), y: 10, vy: c.rnd(110, 150) + c.level * 14, kind: Math.random() < 0.16 + c.level * 0.012 ? 'tnt' : c.oreRoll() }); }
+          items.forEach(function (o) {
+            o.y += o.vy * dt;
+            if (o.y > PY - 8 && o.y < PY + 14 && Math.abs(o.x - px) < 24) {
+              o.dead = true;
+              if (o.kind === 'tnt') { combo = 0; c.fx('boom'); c.hit(px, PY); return; }
+              caught++; combo++; c.add(PTS[o.kind] * (1 + Math.floor(combo / 8)), px, PY - 16); c.fx('gem');
+              if (caught % 14 === 0) c.ore(o.kind, px, PY - 34);
+              if (caught % 20 === 0) c.levelUp();
+            } else if (o.y > H - 12) { o.dead = true; if (o.kind !== 'tnt') combo = 0; c.K.burst(o.x, H - 12, o.kind === 'tnt' ? '#ff6a1f' : '#8b8b96', 5, 80); }
+          });
+          items = items.filter(function (o) { return !o.dead; });
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); c.fill(g, T.STONE, 0, 0, W, 32, 16); g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, 32);
+          c.fill(g, T.COBBLE, 0, H - 12, W, 12, 16); g.fillStyle = '#5a5a60'; g.fillRect(0, H - 16, W, 2); g.fillRect(0, H - 22, W, 2);
+          items.forEach(function (o) { if (o.kind === 'tnt') g.drawImage(c.tex.tnt[Math.floor(c.time * 8) % 2], o.x - 9, o.y - 9, 18, 18); else c.oreIcon(g, o.kind, o.x - 9, o.y - 9, 18); });
+          c.hero(g, px - 9, PY - 16, 18, 'down', 0);
+          g.fillStyle = '#5a5a60'; g.fillRect(px - 24, PY, 48, 18); g.fillStyle = '#8b8b96'; g.fillRect(px - 22, PY + 2, 44, 12); g.fillStyle = '#b3b3b8'; g.fillRect(px - 22, PY + 2, 44, 2);
+          g.fillStyle = '#2a2a30'; g.fillRect(px - 18, PY + 16, 8, 6); g.fillRect(px + 10, PY + 16, 8, 6);
+          if (combo >= 8) c.ctext(g, 'COMBO x' + (1 + Math.floor(combo / 8)), W / 2, 28, 2, '#ffe680');
+        }
+      };
+    }
+  });
+})();
+
+
+/* Blockcade v4.0 — action pack 2: Road Rush, Canyon Flyer, Mob Arena, Block Chop, Flip Runner, Rail Race. */
+(function () {
+  'use strict';
+  var R = PCMini.reg, DX = PCMini.DX, DY = PCMini.DY;
+
+  // ---------- Road Rush: swerve between four lanes ----------
+  R({
+    id: 'racer', name: 'Road Rush', cat: 'action', medals: [300, 1000, 2500], music: 'desert',
+    blurb: 'Swerve your cart between the lanes. Tap left or right. Grab emeralds, miss the boulders.',
+    controls: { dpad: 'lr', a: null, b: null }, pet: [16, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#4fa132'; g.fillRect(0, 0, w, h); g.fillStyle = '#3a3a44'; g.fillRect(10, 0, 44, h);
+      g.fillStyle = '#ffe680'; for (var y = 2; y < h; y += 12) { g.fillRect(21, y, 1, 6); g.fillRect(32, y, 1, 6); g.fillRect(43, y, 1, 6); }
+      g.drawImage(tex.blocks[T.COBBLE].top, 0, 0, 16, 16, 23, 6, 9, 9); g.fillStyle = '#5ef0a8'; g.fillRect(46, 18, 4, 4); g.fillStyle = '#d8322b'; g.fillRect(34, 32, 8, 12);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, LW = 60, RX = 40, lane = 1, lx = 0, obs = [], sp = 0.6, dist = 0, sc = 0, inv = 0, PY = H - 70, gems = 0;
+      function lcx(l) { return RX + l * LW + LW / 2; }
+      function move(d) { var n = c.clamp(lane + d, 0, 3); if (n !== lane) { lane = n; c.fx('click'); } }
+      lx = lcx(1);
+      return {
+        dir: function (d) { if (d === 1) move(-1); if (d === 3) move(1); }, tap: function (x) { move(x < W / 2 ? -1 : 1); },
+        lines: function () { return [['Emeralds', gems]]; },
+        update: function (dt) {
+          var v = 170 + c.level * 22; lx += (lcx(lane) - lx) * Math.min(1, dt * 16); if (inv > 0) inv -= dt;
+          dist += v * dt; var ns = Math.floor(dist / 25); if (ns > sc) { c.add(ns - sc); sc = ns; }
+          if (dist > c.level * 3200) c.levelUp();
+          sp -= dt;
+          if (sp <= 0) {
+            sp = Math.max(0.42, 0.95 - c.level * 0.05); var lanes = c.shuffle([0, 1, 2, 3]), n = Math.random() < 0.25 + c.level * 0.05 ? 2 : 1;
+            for (var i = 0; i < n; i++) obs.push({ lane: lanes[i], y: -20, kind: 'rock' });
+            if (Math.random() < 0.55) obs.push({ lane: lanes[3], y: -20, kind: Math.random() < 0.1 ? 'ore' : 'gem', ore: c.oreRoll() });
+          }
+          obs.forEach(function (o) {
+            o.y += v * dt; if (o.lane !== lane || Math.abs(o.y - PY) > 22) return;
+            if (o.kind === 'rock') { if (inv <= 0) { o.dead = true; c.K.burst(lx, PY, '#8b8b96', 10); if (!c.hit(lx, PY)) inv = 1.2; } }
+            else { o.dead = true; if (o.kind === 'gem') { gems++; c.add(25, lx, PY - 20, '#5ef0a8'); c.fx('gem'); } else c.ore(o.ore, lx, PY - 24); }
+          });
+          obs = obs.filter(function (o) { return !o.dead && o.y < H + 30; });
+        },
+        draw: function (g) {
+          c.fill(g, T.GRASS, 0, 0, W, H, 32); g.fillStyle = '#34343c'; g.fillRect(RX, 0, LW * 4, H); g.fillStyle = '#5a5a60'; g.fillRect(RX - 4, 0, 4, H); g.fillRect(RX + LW * 4, 0, 4, H);
+          g.fillStyle = '#ffe680'; for (var l = 1; l < 4; l++) for (var y = (dist % 40) - 40; y < H; y += 40) g.fillRect(RX + l * LW - 2, y, 3, 20);
+          obs.forEach(function (o) { var x = lcx(o.lane); if (o.kind === 'rock') { c.block(g, T.COBBLE, x - 16, o.y - 16, 32); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x - 16, o.y + 13, 32, 3); } else if (o.kind === 'gem') { g.fillStyle = '#1d6b4a'; g.fillRect(x - 6, o.y - 5, 12, 12); g.fillStyle = '#5ef0a8'; g.fillRect(x - 5, o.y - 6, 10, 10); } else c.oreIcon(g, o.ore, x - 9, o.y - 9, 18); });
+          if (!(inv > 0 && Math.floor(c.time * 12) % 2)) {
+            g.fillStyle = '#2a2a30'; g.fillRect(lx - 16, PY - 12, 5, 9); g.fillRect(lx + 11, PY - 12, 5, 9); g.fillRect(lx - 16, PY + 8, 5, 9); g.fillRect(lx + 11, PY + 8, 5, 9);
+            g.fillStyle = '#7d1f19'; g.fillRect(lx - 13, PY - 18, 26, 38); g.fillStyle = '#d8322b'; g.fillRect(lx - 11, PY - 16, 22, 32); c.hero(g, lx - 9, PY - 12, 18, 'up', 0);
+          }
+        }
+      };
+    }
+  });
+
+  // ---------- Canyon Flyer: thread a rocket up a winding canyon ----------
+  R({
+    id: 'canyon', name: 'Canyon Flyer', cat: 'action', medals: [400, 1500, 4000], music: 'desert',
+    blurb: 'Fly up the twisting canyon. Blast the boulders in your way and never touch the walls.',
+    controls: { dpad: 'lr', a: null, b: null }, pet: [16, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#3b2a4a'; g.fillRect(0, 0, w, h);
+      for (var y = 0; y < h; y += 8) { var o = Math.sin(y / 9) * 8; for (var x = 0; x < 14 + o; x += 8) g.drawImage(tex.blocks[T.SANDSTONE].top, 0, 0, 16, 16, x, y, 8, 8); for (var x2 = 48 + o; x2 < w; x2 += 8) g.drawImage(tex.blocks[T.SANDSTONE].top, 0, 0, 16, 16, x2, y, 8, 8); }
+      g.fillStyle = '#e8e8ee'; g.fillRect(30, 30, 6, 10); g.fillStyle = '#d8322b'; g.fillRect(31, 27, 4, 3); g.fillStyle = '#ff8a1f'; g.fillRect(31, 40, 4, 4); g.drawImage(tex.blocks[T.COBBLE].top, 0, 0, 16, 16, 28, 8, 9, 9);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, rows = [], off = 0, mid = W / 2, px = W / 2, PY = H - 80, tg = [], shots = [], fireT = 0, inv = 0, dist = 0, blasted = 0;
+      function next() { mid = c.clamp(mid + c.rnd(-16, 16), 90, W - 90); var wd = Math.max(112, 200 - c.level * 9); return { l: mid - wd / 2, r: mid + wd / 2 }; }
+      for (var i = 0; i < 30; i++) rows.push({ l: 60, r: W - 60 });
+      return {
+        lines: function () { return [['Boulders blasted', blasted]]; },
+        update: function (dt) {
+          var v = 105 + c.level * 13;
+          if (c.dir === 1) px -= 200 * dt; if (c.dir === 3) px += 200 * dt;
+          if (c.touching) px += (c.tx - px) * Math.min(1, dt * 12);
+          px = c.clamp(px, 8, W - 8); if (inv > 0) inv -= dt;
+          off += v * dt;
+          while (off >= 16) {
+            off -= 16; rows.pop(); var n = next(); rows.unshift(n); dist++; c.add(1);
+            if (dist % 70 === 0) c.levelUp();
+            if (Math.random() < 0.16 + c.level * 0.012) { var ore = Math.random() < 0.14; tg.push({ x: c.rnd(n.l + 14, n.r - 14), y: -16, hp: ore ? 2 : 1, ore: ore ? c.oreRoll() : null }); }
+          }
+          fireT -= dt; if (fireT <= 0) { fireT = 0.34; shots.push({ x: px, y: PY - 12 }); }
+          shots.forEach(function (s) { s.y -= 330 * dt; tg.forEach(function (t) { if (s.dead || t.dead || Math.abs(t.x - s.x) > 12 || Math.abs(t.y - s.y) > 12) return; s.dead = true; if (--t.hp > 0) { c.fx('hit'); return; } t.dead = true; blasted++; c.K.burst(t.x, t.y, '#8b8b96', 8); c.fx('crumble'); if (t.ore) c.ore(t.ore, t.x, t.y - 10); else c.add(15, t.x, t.y - 10); }); });
+          shots = shots.filter(function (s) { return !s.dead && s.y > 20; });
+          tg.forEach(function (t) { t.y += v * dt; if (inv <= 0 && Math.abs(t.x - px) < 15 && Math.abs(t.y - PY) < 15) { t.dead = true; if (!c.hit(px, PY)) inv = 1.5; } });
+          tg = tg.filter(function (t) { return !t.dead && t.y < H + 20; });
+          var row = rows[c.clamp(Math.floor((PY - off + 16) / 16), 0, rows.length - 1)];
+          if (inv <= 0 && (px - 6 < row.l || px + 6 > row.r)) { if (!c.hit(px, PY)) { inv = 1.6; px = (row.l + row.r) / 2; } }
+        },
+        draw: function (g) {
+          g.fillStyle = '#2a1f38'; g.fillRect(0, 0, W, H);
+          rows.forEach(function (r, i) {
+            var y = i * 16 + off - 16;
+            for (var x = r.l - 16; x > -16; x -= 16) c.block(g, T.SANDSTONE, x, y, 16);
+            for (var x2 = r.r; x2 < W; x2 += 16) c.block(g, T.SANDSTONE, x2, y, 16);
+            g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(r.l - 3, y, 3, 16); g.fillRect(r.r, y, 3, 16);
+          });
+          tg.forEach(function (t) { c.block(g, t.ore ? c.oreTile(t.ore) : T.COBBLE, t.x - 11, t.y - 11, 22); });
+          g.fillStyle = '#ffe680'; shots.forEach(function (s) { g.fillRect(s.x - 1, s.y - 6, 3, 10); });
+          if (!(inv > 0 && Math.floor(c.time * 12) % 2)) {
+            g.fillStyle = Math.floor(c.time * 16) % 2 ? '#ff8a1f' : '#ffd23b'; g.fillRect(px - 3, PY + 12, 6, 8);
+            g.fillStyle = '#8b8b96'; g.fillRect(px - 10, PY + 2, 5, 10); g.fillRect(px + 5, PY + 2, 5, 10);
+            g.fillStyle = '#e8e8ee'; g.fillRect(px - 5, PY - 10, 10, 22); g.fillStyle = '#d8322b'; g.fillRect(px - 3, PY - 15, 6, 6); g.fillStyle = '#3fa7e0'; g.fillRect(px - 3, PY - 5, 6, 5);
+          }
+        }
+      };
+    }
+  });
+
+  // ---------- Mob Arena: survive the waves; your bow fires by itself ----------
+  R({
+    id: 'arena', name: 'Mob Arena', cat: 'action', medals: [600, 2500, 7000], music: 'forest',
+    blurb: 'Monsters rush in from every side. Keep moving — your bow shoots the nearest one by itself.',
+    controls: { dpad: true, a: null, b: null }, pet: [16, 417],
+    thumb: function (g, w, h, tex, T) {
+      for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.MOSS].top, x, y);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 0, w, h); g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).down[0], 24, 16, 16, 16);
+      g.drawImage(tex.mons.sly[0], 2, 4, 12, 12); g.drawImage(tex.mons.frost[0], 48, 6, 12, 12); g.drawImage(tex.mons.mudge[0], 46, 34, 12, 12); g.fillStyle = '#ffe680'; g.fillRect(16, 12, 5, 2);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, p = { x: W / 2, y: H / 2 }, mobs = [], shots = [], drops = [], toSpawn = 0, spawnT = 0, fireT = 0, inv = 0, kills = 0, face = 2;
+      var KINDS = ['mudge', 'sly', 'frost', 'rumble'];
+      function wave() { toSpawn = 5 + c.level * 4; spawnT = 1; }
+      wave();
+      return {
+        lines: function () { return [['Monsters beaten', kills]]; },
+        update: function (dt) {
+          var mx = c.dx, my = c.dy;
+          if (c.touching) { var ddx = c.tx - p.x, ddy = c.ty - p.y, dl = Math.hypot(ddx, ddy); if (dl > 6) { mx = ddx / dl; my = ddy / dl; } else { mx = my = 0; } }
+          if (mx || my) { p.x += mx * 125 * dt; p.y += my * 125 * dt; face = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? 3 : 1) : (my > 0 ? 2 : 0); }
+          p.x = c.clamp(p.x, 12, W - 12); p.y = c.clamp(p.y, 34, H - 12); if (inv > 0) inv -= dt;
+          spawnT -= dt;
+          if (toSpawn > 0 && spawnT <= 0) {
+            spawnT = Math.max(0.25, 0.9 - c.level * 0.07); toSpawn--; var s = c.ri(4), k = KINDS[Math.min(3, c.ri(1 + Math.ceil(c.level / 2)))];
+            mobs.push({ x: s === 1 ? -12 : s === 3 ? W + 12 : c.rnd(10, W - 10), y: s === 0 ? 22 : s === 2 ? H + 12 : c.rnd(34, H - 10), kind: k, sp: { mudge: 42, sly: 58, frost: 76, rumble: 50 }[k] + c.level * 4, hp: k === 'rumble' ? 3 : 1 });
+          }
+          var near = null, nd = 1e9;
+          mobs.forEach(function (m) {
+            var dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy) || 1; m.x += dx / d * m.sp * dt; m.y += dy / d * m.sp * dt;
+            if (d < nd) { nd = d; near = m; }
+            if (d < 16 && inv <= 0) { if (!c.hit(p.x, p.y)) inv = 1.3; }
+          });
+          fireT -= dt;
+          if (fireT <= 0 && near && nd < 170) { fireT = Math.max(0.36, 0.58 - c.level * 0.012); var a = Math.atan2(near.y - p.y, near.x - p.x); shots.push({ x: p.x, y: p.y, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, t: 0 }); c.fx('shoot'); }
+          shots.forEach(function (s) {
+            s.x += s.vx * dt; s.y += s.vy * dt; s.t += dt;
+            mobs.forEach(function (m) { if (s.dead || m.dead || Math.hypot(m.x - s.x, m.y - s.y) > 13) return; s.dead = true; if (--m.hp > 0) return; m.dead = true; kills++; c.add(m.kind === 'rumble' ? 50 : 20, m.x, m.y - 12); c.K.burst(m.x, m.y, '#c9ccd4', 8); c.fx('bonk'); if (Math.random() < 0.08) drops.push({ x: m.x, y: m.y, kind: c.oreRoll(), t: 8 }); });
+          });
+          shots = shots.filter(function (s) { return !s.dead && s.t < 0.9; }); mobs = mobs.filter(function (m) { return !m.dead; });
+          drops.forEach(function (o) { o.t -= dt; if (Math.hypot(o.x - p.x, o.y - p.y) < 18) { o.t = 0; c.ore(o.kind, p.x, p.y - 22); } });
+          drops = drops.filter(function (o) { return o.t > 0; });
+          if (!mobs.length && toSpawn <= 0) { c.add(100 * c.level, W / 2, H / 2 - 50, '#ffe680'); c.levelUp(); wave(); }
+        },
+        draw: function (g) {
+          c.fill(g, T.MOSS, 0, 0, W, H, 32); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 0, W, H);
+          drops.forEach(function (o) { if (o.t > 2 || Math.floor(c.time * 8) % 2) c.oreIcon(g, o.kind, o.x - 8, o.y - 8, 16); });
+          mobs.slice().sort(function (a, b) { return a.y - b.y; }).forEach(function (m) { var s = m.kind === 'rumble' ? 28 : 22; c.mon(g, m.kind, m.x - s / 2, m.y - s / 2, s, Math.abs(p.x - m.x) > Math.abs(p.y - m.y) ? (p.x > m.x ? 3 : 1) : (p.y > m.y ? 2 : 0)); });
+          g.fillStyle = '#ffe680'; shots.forEach(function (s) { g.fillRect(s.x - 2, s.y - 2, 4, 4); });
+          if (!(inv > 0 && Math.floor(c.time * 12) % 2)) c.hero(g, p.x - 12, p.y - 14, 24, ['up', 'left', 'down', 'right'][face], (c.dx || c.dy || c.touching) ? 1 + Math.floor(c.time * 8) % 2 : 0);
+          c.text(g, 'WAVE ' + c.level + '  LEFT ' + (mobs.length + toSpawn), 6, 26, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Block Chop: slice the flying blocks, never the TNT ----------
+  R({
+    id: 'chop', name: 'Block Chop', cat: 'action', medals: [300, 900, 2000], music: 'forest', lives: 3, clock: 60,
+    blurb: 'Blocks fly up — swipe across them to chop! 60 seconds. Slice the TNT and it goes boom.',
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#20301c'; g.fillRect(0, 0, w, h); g.drawImage(tex.blocks[T.LOG].top, 0, 0, 16, 16, 8, 22, 14, 14); g.drawImage(tex.blocks[T.GOLD].top, 0, 0, 16, 16, 42, 8, 14, 14); g.drawImage(tex.tnt[0], 26, 28, 12, 12);
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(4, 40); g.lineTo(58, 6); g.stroke();
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, items = [], sp = 0.8, trail = [], combo = 0, sliced = 0;
+      var KINDS = [T.LOG, T.PLANKS, T.LEAVES, T.MOSS, T.CLAY, T.SAND, T.ICE];
+      function toss() { var x = c.rnd(40, W - 40), r = Math.random(); items.push({ x: x, y: H + 16, vx: (W / 2 - x) * c.rnd(0.2, 0.9) , vy: -c.rnd(430, 520), rot: 0, vr: c.rnd(-4, 4), kind: r < 0.14 ? 'tnt' : r < 0.19 ? 'ore' : 'block', tile: c.pick(KINDS), ore: c.oreRoll() }); }
+      function segHit(o, x1, y1, x2, y2) { var dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy, t = l2 ? c.clamp(((o.x - x1) * dx + (o.y - y1) * dy) / l2, 0, 1) : 0; return Math.hypot(o.x - (x1 + dx * t), o.y - (y1 + dy * t)) < 20; }
+      function cut(x, y, px, py) {
+        trail.push({ x: x, y: y, t: 0.18 });
+        items.forEach(function (o) {
+          if (o.cut || !segHit(o, px, py, x, y)) return; o.cut = true;
+          if (o.kind === 'tnt') { combo = 0; c.fx('boom'); c.K.burst(o.x, o.y, '#ff6a1f', 20, 220); c.clock = Math.max(0.1, c.clock - 5); c.hit(o.x, o.y); return; }
+          sliced++; combo++; c.fx('crumble'); c.K.burst(o.x, o.y, c.tex.blocks[o.kind === 'ore' ? c.oreTile(o.ore) : o.tile].avg, 10, 160);
+          if (o.kind === 'ore') c.ore(o.ore, o.x, o.y - 14); c.add(10 + Math.min(40, combo * 2), o.x, o.y - 4);
+          if (sliced % 20 === 0) c.levelUp(true);
+        });
+      }
+      return {
+        tap: function (x, y) { trail = [{ x: x, y: y, t: 0.18 }]; }, drag: cut, lines: function () { return [['Blocks chopped', sliced]]; },
+        update: function (dt) {
+          sp -= dt; if (sp <= 0) { sp = Math.max(0.35, 0.9 - c.level * 0.07) * c.rnd(0.7, 1.3); toss(); if (Math.random() < 0.3) toss(); }
+          items.forEach(function (o) { o.vy += 620 * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.vr * dt; if (o.y > H + 30 && o.vy > 0) { o.gone = true; if (!o.cut && o.kind !== 'tnt') combo = 0; } });
+          items = items.filter(function (o) { return !o.gone && !o.cut; });
+          trail.forEach(function (t) { t.t -= dt; }); trail = trail.filter(function (t) { return t.t > 0; });
+        },
+        draw: function (g) {
+          var gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#16261a'); gr.addColorStop(1, '#2c4426'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+          items.forEach(function (o) {
+            g.save(); g.translate(o.x, o.y); g.rotate(o.rot);
+            if (o.kind === 'tnt') g.drawImage(c.tex.tnt[Math.floor(c.time * 8) % 2], -15, -15, 30, 30); else c.block(g, o.kind === 'ore' ? c.oreTile(o.ore) : o.tile, -15, -15, 30);
+            g.restore();
+          });
+          if (trail.length > 1) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); trail.forEach(function (t, i) { if (i) g.lineTo(t.x, t.y); else g.moveTo(t.x, t.y); }); g.stroke(); }
+          if (combo >= 3) c.ctext(g, combo + ' COMBO', W / 2, 28, 2, '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Flip Runner: tap to flip gravity between floor and ceiling ----------
+  R({
+    id: 'gravflip', name: 'Flip Runner', cat: 'action', medals: [200, 600, 1500], music: 'crystal',
+    blurb: 'Tap to flip gravity! Run on the floor or the ceiling to miss the crystal spikes.',
+    controls: { dpad: false, a: 'FLIP', b: null }, pet: [18, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#131028'; g.fillRect(0, 0, w, h);
+      for (var x = 0; x < w; x += 8) { g.drawImage(tex.blocks[T.BASALT].top, 0, 0, 16, 16, x, 4, 8, 8); g.drawImage(tex.blocks[T.BASALT].top, 0, 0, 16, 16, x, 36, 8, 8); }
+      g.drawImage(tex.blocks[T.CRYSTAL].top, 0, 0, 16, 16, 40, 22, 8, 14); g.drawImage(tex.blocks[T.CRYSTAL].top, 0, 0, 16, 16, 20, 12, 8, 10);
+      g.save(); g.translate(18, 24); g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).right[1], -12, -1, 12, 12); g.restore();
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, TOP = 110, BOT = 320, HX = 62, y = BOT, vy = 0, gd = 1, obs = [], sp = 1.2, dist = 0, sc = 0, inv = 0, flips = 0;
+      function flip() { gd = -gd; flips++; c.fx('hop'); }
+      return {
+        tap: flip, a: flip, lines: function () { return [['Distance', Math.floor(dist / 10) + ' m']]; },
+        update: function (dt) {
+          var v = 150 + c.level * 18;
+          vy += gd * 1700 * dt; y += vy * dt; if (y > BOT) { y = BOT; vy = 0; } if (y < TOP + 24) { y = TOP + 24; vy = 0; }
+          if (inv > 0) inv -= dt;
+          dist += v * dt; var ns = Math.floor(dist / 20); if (ns > sc) { c.add(ns - sc); sc = ns; } if (dist > c.level * 2600) c.levelUp();
+          sp -= dt;
+          if (sp <= 0) {
+            sp = c.rnd(0.75, 1.35) * Math.max(0.6, 1 - c.level * 0.04); var r = Math.random();
+            if (r < 0.18) obs.push({ x: W + 20, w: 16, kind: 'ore', top: c.pick([TOP + 14, BOT - 40, (TOP + BOT) / 2 - 8]), ore: c.oreRoll() });
+            else { var hh = c.rnd(46, 96), up = Math.random() < 0.5; obs.push({ x: W + 20, w: 20, kind: 'spike', top: up ? TOP : BOT - hh, h: hh }); }
+          }
+          obs.forEach(function (o) {
+            o.x -= v * dt; if (o.x > HX + 9 || o.x + o.w < HX - 9) return;
+            if (o.kind === 'ore') { if (y > o.top - 4 && y - 24 < o.top + 20) { o.dead = true; c.ore(o.ore, HX, y - 36); } }
+            else if (inv <= 0 && y > o.top + 3 && y - 24 < o.top + o.h - 3) { if (!c.hit(HX, y - 12)) inv = 1.3; }
+          });
+          obs = obs.filter(function (o) { return !o.dead && o.x > -40; });
+        },
+        draw: function (g) {
+          g.fillStyle = '#131028'; g.fillRect(0, 0, W, H);
+          g.fillStyle = '#2a2450'; for (var i = 0; i < 14; i++) g.fillRect(((i * 61 - dist * 0.4) % (W + 30) + W + 30) % (W + 30) - 15, TOP + 20 + (i * 37) % (BOT - TOP - 40), 3, 3);
+          for (var x = -(dist % 16); x < W; x += 16) { c.block(g, T.BASALT, x, TOP - 16, 16); c.block(g, T.BASALT, x, BOT, 16); }
+          c.fill(g, T.BASALT, 0, 22, W, TOP - 38, 16); c.fill(g, T.BASALT, 0, BOT + 16, W, H - BOT - 16, 16); g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, 22, W, TOP - 38); g.fillRect(0, BOT + 16, W, H - BOT - 16);
+          obs.forEach(function (o) { if (o.kind === 'ore') c.oreIcon(g, o.ore, o.x, o.top, 18); else { for (var yy = o.top; yy < o.top + o.h - 1; yy += 16) c.block(g, T.CRYSTAL, o.x, yy, 20, Math.min(16, o.top + o.h - yy)); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(o.x, o.top, 3, o.h); } });
+          if (inv > 0 && Math.floor(c.time * 12) % 2) return;
+          g.save(); g.translate(HX, y - 12); if (gd < 0) g.scale(1, -1); c.hero(g, -12, -12, 24, 'right', 1 + Math.floor(c.time * 10) % 2); g.restore();
+        }
+      };
+    }
+  });
+
+  // ---------- Rail Race: lay rails, box the other carts in ----------
+  R({
+    id: 'railrace', name: 'Rail Race', cat: 'action', medals: [300, 1200, 3500], music: 'caves', w: 320, h: 420,
+    blurb: 'Your cart leaves a rail behind it. Steer so the monster carts crash before you do!',
+    controls: { dpad: true, a: null, b: null }, pet: [16, 418],
+    thumb: function (g, w, h) {
+      g.fillStyle = '#16121e'; g.fillRect(0, 0, w, h); g.fillStyle = '#3fa7e0'; g.fillRect(8, 36, 30, 3); g.fillRect(36, 16, 3, 23); g.fillStyle = '#d8322b'; g.fillRect(50, 6, 3, 30); g.fillRect(22, 6, 30, 3);
+      g.fillStyle = '#fff'; g.fillRect(35, 13, 5, 5); g.fillRect(20, 5, 5, 5);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, CS = 10, COLS = 32, ROWS = 38, OY = 28, grid, carts, stepT = 0, wait = 1.2, wins = 0;
+      var COLS_ = ['#3fa7e0', '#d8322b', '#f2c230', '#8a5ad6'];
+      function free(x, y) { return x >= 0 && y >= 0 && x < COLS && y < ROWS && !grid[y * COLS + x]; }
+      function run(x, y, d) { var n = 0; while (n < 12 && free(x + DX[d] * (n + 1), y + DY[d] * (n + 1))) n++; return n; }
+      function round() {
+        grid = new Uint8Array(COLS * ROWS); var n = Math.min(3, 1 + Math.floor((c.level - 1) / 2));
+        carts = [{ x: 16, y: 32, d: 0, me: true, alive: true }];
+        [[16, 5, 2], [5, 18, 3], [26, 18, 1]].slice(0, n).forEach(function (s) { carts.push({ x: s[0], y: s[1], d: s[2], alive: true }); });
+        carts.forEach(function (k, i) { k.col = i + 1; grid[k.y * COLS + k.x] = i + 1; }); wait = 1.2; c.say('ROUND ' + c.level, 'DO NOT CRASH!', 1.1);
+      }
+      function turn(d) { var me = carts[0]; if (d >= 0 && (d + 2) % 4 !== me.d) me.nd = d; }
+      round();
+      return {
+        dir: turn, up: function () { turn(PCMini.swipe(c, 12)); }, lines: function () { return [['Rounds won', wins]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; return; }
+          stepT += dt; var step = Math.max(0.055, 0.1 - c.level * 0.005); if (stepT < step) return; stepT = 0;
+          carts.forEach(function (k) {
+            if (!k.alive) return;
+            if (k.me) { if (k.nd != null) { k.d = k.nd; k.nd = null; } }
+            else {
+              var ahead = free(k.x + DX[k.d], k.y + DY[k.d]);
+              if (!ahead || Math.random() < 0.04) { var best = ahead ? k.d : -1, bl = ahead ? run(k.x, k.y, k.d) : -1; [(k.d + 1) % 4, (k.d + 3) % 4].forEach(function (d) { var l = free(k.x + DX[d], k.y + DY[d]) ? run(k.x, k.y, d) + Math.random() : -1; if (l > bl) { bl = l; best = d; } }); if (best >= 0) k.d = best; }
+            }
+            var nx = k.x + DX[k.d], ny = k.y + DY[k.d];
+            if (!free(nx, ny)) { k.alive = false; c.K.burst(k.x * CS + 5, OY + k.y * CS + 5, COLS_[k.col - 1], 14, 160); c.fx('boom'); if (!k.me) c.add(100 * c.level, k.x * CS, OY + k.y * CS); return; }
+            k.x = nx; k.y = ny; grid[ny * COLS + nx] = k.col;
+          });
+          if (!carts[0].alive) { if (!c.hit()) round(); return; }
+          if (carts.every(function (k) { return k.me || !k.alive; })) { wins++; c.add(200 * c.level, W / 2, H / 2, '#ffe680'); c.levelUp(true); if (wins % 2 === 0) c.ore(); round(); }
+        },
+        draw: function (g) {
+          g.fillStyle = '#16121e'; g.fillRect(0, 0, W, H); g.fillStyle = '#211a2c'; for (var x = 0; x < COLS; x += 2) for (var y = 0; y < ROWS; y += 2) g.fillRect(x * CS, OY + y * CS, CS, CS);
+          g.strokeStyle = '#5a5a60'; g.lineWidth = 2; g.strokeRect(1, OY - 1, W - 2, ROWS * CS + 2);
+          for (var i = 0; i < grid.length; i++) if (grid[i]) { g.fillStyle = COLS_[grid[i] - 1]; g.fillRect((i % COLS) * CS + 2, OY + Math.floor(i / COLS) * CS + 2, CS - 4, CS - 4); }
+          carts.forEach(function (k) { if (!k.alive) return; g.fillStyle = '#fff'; g.fillRect(k.x * CS - 1, OY + k.y * CS - 1, CS + 2, CS + 2); g.fillStyle = COLS_[k.col - 1]; g.fillRect(k.x * CS + 1, OY + k.y * CS + 1, CS - 2, CS - 2); });
+        }
+      };
+    }
+  });
+})();
+
+
+/* Blockcade v4.0 — skill pack: Sky Tower, Soft Landing, Plinko Drop, Slime Golf, Target Range, Beat Blocks. */
+(function () {
+  'use strict';
+  var R = PCMini.reg;
+
+  // ---------- Sky Tower: drop each sliding block square on the stack ----------
+  R({
+    id: 'towerstack', name: 'Sky Tower', cat: 'skill', medals: [150, 450, 1000], music: 'snow',
+    blurb: 'Tap to drop the sliding block. Whatever hangs over the edge falls off. How high can you build?',
+    controls: { dpad: false, a: 'DROP', b: null }, pet: [20, 417],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#6fb7ff'; g.fillRect(0, 0, w, h);
+      [[14, 40, 36, T.STONE], [16, 32, 32, T.PLANKS], [20, 24, 26, T.GOLD], [22, 16, 22, T.ICE]].forEach(function (b) { g.drawImage(tex.blocks[b[3]].top, 0, 0, 16, 8, b[0], b[1], b[2], 8); });
+      g.drawImage(tex.blocks[T.DIAMOND].top, 0, 0, 16, 8, 34, 5, 22, 8);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, BH = 22, stack = [{ x: 70, w: 180, tile: T.STONE }], cur, cam = 0, combo = 0, falls = [];
+      var TILES = [T.PLANKS, T.COBBLE, T.SANDSTONE, T.ICE, T.CLAY, T.LOG, T.GOLD, T.BASALT, T.DIAMOND, T.MOSS];
+      function next(w) { var left = stack.length % 2 === 0; cur = { x: left ? -w : W, w: w, dir: left ? 1 : -1, tile: TILES[stack.length % TILES.length] }; }
+      function drop() {
+        var top = stack[stack.length - 1], l = Math.max(cur.x, top.x), r = Math.min(cur.x + cur.w, top.x + top.w), ov = r - l;
+        if (ov < 5) { combo = 0; falls.push({ x: cur.x, w: cur.w, y: 0, tile: cur.tile }); c.fx('nope'); if (!c.hit(cur.x + cur.w / 2, 120)) next(cur.w); return; }
+        var perfect = Math.abs(cur.x - top.x) < 5;
+        if (perfect) { l = top.x; ov = top.w; combo++; c.fx('crystal'); } else { combo = 0; c.fx('place'); if (cur.x < top.x) falls.push({ x: cur.x, w: top.x - cur.x, y: 0, tile: cur.tile }); else falls.push({ x: r, w: cur.x + cur.w - r, y: 0, tile: cur.tile }); }
+        stack.push({ x: l, w: ov, tile: cur.tile });
+        c.add(10 + combo * 5, l + ov / 2, 110, perfect ? '#ffe680' : '#fff');
+        if ((stack.length - 1) % 8 === 0) { c.levelUp(); c.ore(null, W / 2, 150); }
+        next(ov);
+      }
+      next(180);
+      return {
+        tap: drop, a: drop, lines: function () { return [['Blocks stacked', stack.length - 1]]; },
+        update: function (dt) {
+          cur.x += cur.dir * (120 + c.level * 22 + stack.length * 2) * dt;
+          if (cur.x > W - cur.w + 30) cur.dir = -1; if (cur.x < -30) cur.dir = 1;
+          cam += (Math.max(0, stack.length - 9) * BH - cam) * Math.min(1, dt * 6);
+          falls.forEach(function (f) { f.y += (200 + f.y * 3) * dt; }); falls = falls.filter(function (f) { return f.y < H; });
+        },
+        draw: function (g) {
+          var gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#3a6fd0'); gr.addColorStop(1, '#a8dcff'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+          g.fillStyle = 'rgba(255,255,255,0.7)'; [[30, 90], [210, 160], [120, 250]].forEach(function (cl) { var y = (cl[1] + cam * 0.4) % (H + 40) - 20; g.fillRect(cl[0], y, 60, 12); g.fillRect(cl[0] + 12, y - 8, 30, 8); });
+          var base = H - 30 + cam;
+          c.fill(g, T.GRASS, 0, base, W, 48, 16);
+          stack.forEach(function (b, i) { var y = base - (i + 1) * BH; if (y > H || y < -BH) return; c.block(g, b.tile, b.x, y, b.w, BH); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(b.x, y + BH - 3, b.w, 3); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(b.x, y, b.w, 2); });
+          var cy = base - (stack.length + 1) * BH - 4;
+          c.block(g, cur.tile, cur.x, cy, cur.w, BH); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(cur.x, cy, cur.w, 2);
+          falls.forEach(function (f) { if (f.w > 0) c.block(g, f.tile, f.x, cy + f.y, f.w, BH); });
+          c.text(g, (stack.length - 1) + ' HIGH', 6, 26, 2, '#fff'); if (combo > 1) c.ctext(g, 'PERFECT x' + combo, W / 2, 46, 2, '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Soft Landing: set the rocket down gently on the gold pad ----------
+  R({
+    id: 'lander', name: 'Soft Landing', cat: 'skill', medals: [300, 1200, 3000], music: 'crystal',
+    blurb: 'Land the rocket gently on the gold pad. THRUST slows your fall; arrows nudge you sideways.',
+    controls: { dpad: 'lr', a: 'THRUST', b: null }, pet: [16, 40],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#0d0b1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; [[6, 5], [50, 10], [24, 18]].forEach(function (s) { g.fillRect(s[0], s[1], 1, 1); });
+      [[0, 34], [8, 38], [16, 30], [40, 36], [48, 28], [56, 34]].forEach(function (p) { g.drawImage(tex.blocks[T.STONE].top, 0, 0, 16, 16, p[0], p[1], 8, 20); });
+      g.drawImage(tex.blocks[T.GOLD].top, 0, 0, 16, 16, 24, 40, 16, 8); g.fillStyle = '#e8e8ee'; g.fillRect(29, 20, 6, 10); g.fillStyle = '#d8322b'; g.fillRect(30, 17, 4, 3); g.fillStyle = '#ff8a1f'; g.fillRect(30, 30, 4, 4);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, CW = 16, N = 20, hts, pad, pw, s, wait = 0, landed = 0;
+      function setup() {
+        pw = Math.max(2, 5 - Math.floor(c.level / 2)); pad = 1 + c.ri(N - pw - 2); var ph = c.rnd(30, 110); hts = [];
+        var hh = c.rnd(40, 120); for (var i = 0; i < N; i++) { hh = c.clamp(hh + c.rnd(-34, 34), 24, 170); hts.push(i >= pad && i < pad + pw ? ph : hh); }
+        s = { x: pad < N / 2 ? W - 50 : 50, y: 48, vx: pad < N / 2 ? -22 : 22, vy: 0, fuel: 100 }; wait = 0;
+      }
+      function gy(x) { return H - hts[c.clamp(Math.floor(x / CW), 0, N - 1)]; }
+      setup();
+      return {
+        lines: function () { return [['Landings', landed]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0) setup(); return; }
+          var th = (c.a || c.touching) && s.fuel > 0, lf = c.dir === 1 || (c.touching && c.tx < s.x - 34), rt = c.dir === 3 || (c.touching && c.tx > s.x + 34);
+          if (th) { s.vy -= 150 * dt; s.fuel -= 14 * dt; if (Math.random() < 0.5) c.K.burst(s.x, s.y + 12, '#ff8a1f', 1, 40); }
+          if (s.fuel > 0) { if (lf) { s.vx -= 75 * dt; s.fuel -= 4 * dt; } if (rt) { s.vx += 75 * dt; s.fuel -= 4 * dt; } }
+          s.th = th; s.vy += (42 + c.level * 6) * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+          if (s.x < 8) { s.x = 8; s.vx = Math.abs(s.vx) * 0.4; } if (s.x > W - 8) { s.x = W - 8; s.vx = -Math.abs(s.vx) * 0.4; } if (s.y < 30) { s.y = 30; s.vy = Math.max(0, s.vy); }
+          var ground = Math.min(gy(s.x - 6), gy(s.x + 6));
+          if (s.y + 10 >= ground) {
+            var c1 = Math.floor((s.x - 6) / CW), c2 = Math.floor((s.x + 6) / CW), on = c1 >= pad && c2 < pad + pw;
+            if (on && s.vy < 72 && Math.abs(s.vx) < 46) {
+              landed++; var bonus = Math.round(s.fuel) * 2; c.add(100 * c.level + bonus, s.x, s.y - 30, '#ffe680'); c.fx('clear'); s.y = ground - 10; s.vx = s.vy = 0; c.levelUp(true); c.say('LANDED!', 'FUEL BONUS ' + bonus, 1.3); if (landed % 2 === 0) c.ore(null, s.x, s.y - 50); wait = 1.5;
+            } else { c.fx('boom'); c.K.burst(s.x, s.y, '#ff8a1f', 22, 220); if (!c.hit(s.x, s.y)) { c.say(on ? 'TOO FAST!' : 'MISSED THE PAD', null, 1.1); wait = 1.2; s.y = -100; s.vx = s.vy = 0; } }
+          }
+        },
+        draw: function (g) {
+          g.fillStyle = '#0d0b1e'; g.fillRect(0, 0, W, H); g.fillStyle = '#fff'; for (var i = 0; i < 36; i++) g.fillRect((i * 89) % W, 24 + (i * 53) % 240, 1 + i % 2, 1 + i % 2);
+          for (var k = 0; k < N; k++) { var top = H - hts[k], isPad = k >= pad && k < pad + pw; for (var y = top; y < H; y += 16) c.block(g, isPad && y === top ? T.GOLD : T.STONE, k * CW, y, 16); if (isPad) { g.fillStyle = Math.floor(c.time * 4) % 2 ? '#fff3a8' : '#f7c936'; g.fillRect(k * CW, top - 3, CW, 3); } }
+          if (s.y > -50) {
+            if (s.th) { g.fillStyle = Math.floor(c.time * 16) % 2 ? '#ff8a1f' : '#ffd23b'; g.fillRect(s.x - 3, s.y + 10, 6, 9); }
+            g.fillStyle = '#8b8b96'; g.fillRect(s.x - 9, s.y + 4, 4, 7); g.fillRect(s.x + 5, s.y + 4, 4, 7);
+            g.fillStyle = '#e8e8ee'; g.fillRect(s.x - 5, s.y - 9, 10, 19); g.fillStyle = '#d8322b'; g.fillRect(s.x - 3, s.y - 14, 6, 6); g.fillStyle = '#3fa7e0'; g.fillRect(s.x - 3, s.y - 5, 6, 5);
+          }
+          g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(6, 28, 80, 7); g.fillStyle = s.fuel < 25 ? '#ff7a6a' : '#ffd23b'; g.fillRect(6, 28, Math.max(0, s.fuel) * 0.8, 7); c.text(g, 'FUEL', 92, 28, 1);
+          var ok = s.vy < 72 && Math.abs(s.vx) < 46; c.text(g, 'SPEED ' + Math.round(Math.hypot(s.vx, s.vy)), 6, 40, 1, ok ? '#7dff8a' : '#ff7a6a');
+        }
+      };
+    }
+  });
+
+  // ---------- Plinko Drop: bounce ten balls down the pegs into the buckets ----------
+  R({
+    id: 'plinko', name: 'Plinko Drop', cat: 'skill', medals: [2000, 8000, 20000], music: 'meadow', lives: 0,
+    blurb: 'Slide to aim, let go to drop. Ten slime balls bounce down the pegs — reach the target to play on.',
+    controls: { dpad: 'lr', a: 'DROP', b: null }, pet: [16, 60],
+    thumb: function (g, w, h, tex) {
+      g.fillStyle = '#1e1a30'; g.fillRect(0, 0, w, h); g.fillStyle = '#c9ccd4'; for (var r = 0; r < 4; r++) for (var i = 0; i < 6; i++) g.fillRect(6 + i * 10 + (r % 2) * 5, 8 + r * 8, 2, 2);
+      ['#8b8b96', '#f2c230', '#7df9ff', '#f2c230', '#8b8b96'].forEach(function (col, i) { g.fillStyle = col; g.fillRect(2 + i * 12, 40, 11, 8); }); g.fillStyle = '#5ef0a8'; g.fillRect(30, 2, 5, 5);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, pegs = [], balls = [], ax = W / 2, left = 10, round = 0, target = 0, gotOre = false, BY = H - 34, VALS = [10, 50, 100, 300, 100, 50, 10], BW = W / 7;
+      for (var r = 0; r < 9; r++) for (var i = 0; i < (r % 2 ? 7 : 8); i++) pegs.push({ x: (r % 2 ? 40 : 20) + i * 40, y: 96 + r * 30 });
+      function start() { left = 10; round = 0; gotOre = false; target = c.level * (700 + 60 * c.level); c.say('TARGET ' + target, '10 BALLS', 1.4); }
+      function drop() { if (left <= 0 || balls.length > 2) return; left--; balls.push({ x: ax + c.rnd(-0.5, 0.5), y: 64, vx: c.rnd(-10, 10), vy: 0 }); c.fx('drop'); }
+      start();
+      return {
+        a: drop, up: drop, lines: function () { return [['Round score', round + ' / ' + target]]; },
+        update: function (dt) {
+          if (c.dir === 1) ax -= 180 * dt; if (c.dir === 3) ax += 180 * dt; if (c.touching) ax = c.tx; ax = c.clamp(ax, 14, W - 14);
+          balls.forEach(function (b) {
+            for (var st = 0; st < 2; st++) {
+              var h = dt / 2; b.vy += 480 * h; b.x += b.vx * h; b.y += b.vy * h;
+              if (b.x < 6) { b.x = 6; b.vx = Math.abs(b.vx) * 0.6; } if (b.x > W - 6) { b.x = W - 6; b.vx = -Math.abs(b.vx) * 0.6; }
+              pegs.forEach(function (p) {
+                var dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy); if (d >= 9 || d === 0) return;
+                var nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny; b.x = p.x + nx * 9; b.y = p.y + ny * 9;
+                if (vn < 0) { b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; b.vx += c.rnd(-14, 14); p.t = 0.15; if (Math.abs(vn) > 60) c.fx('click'); }
+              });
+            }
+            if (b.y > BY) { b.dead = true; var k = c.clamp(Math.floor(b.x / BW), 0, 6), v = VALS[k] * c.level; round += v; c.add(v, b.x, BY - 14, k === 3 ? '#ffe680' : '#fff'); c.fx(k === 3 ? 'crystal' : 'gem'); if (k === 3 && !gotOre) { gotOre = true; c.ore(null, b.x, BY - 34); } }
+          });
+          balls = balls.filter(function (b) { return !b.dead; }); pegs.forEach(function (p) { if (p.t > 0) p.t -= dt; });
+          if (left <= 0 && !balls.length && !c.done) { if (round >= target) { c.levelUp(); start(); } else c.end(false, 'Out of Balls!'); }
+        },
+        draw: function (g) {
+          g.fillStyle = '#1e1a30'; g.fillRect(0, 0, W, H);
+          pegs.forEach(function (p) { g.fillStyle = p.t > 0 ? '#ffe680' : '#c9ccd4'; g.fillRect(p.x - 3, p.y - 3, 6, 6); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(p.x - 3, p.y + 1, 6, 2); });
+          VALS.forEach(function (v, i) { g.fillStyle = ['#5a5a60', '#b98a4a', '#f2c230', '#3fd0e0', '#f2c230', '#b98a4a', '#5a5a60'][i]; g.fillRect(i * BW + 2, BY, BW - 4, 34); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(i * BW + 2, BY + 26, BW - 4, 8); c.ctext(g, v * c.level, i * BW + BW / 2, BY + 10, 1, '#fff'); });
+          g.fillStyle = '#5ef0a8'; balls.forEach(function (b) { g.fillRect(b.x - 5, b.y - 5, 10, 10); });
+          if (left > 0) { g.fillStyle = 'rgba(94,240,168,0.5)'; g.fillRect(ax - 5, 58, 10, 10); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(ax - 1, 70, 2, 18); }
+          c.text(g, 'BALLS ' + left, 6, 28, 2, '#fff'); c.text(g, round + ' / ' + target, 6, 44, 1, round >= target ? '#7dff8a' : '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Slime Golf: pull back, let go, sink the slime ----------
+  R({
+    id: 'golf', name: 'Slime Golf', cat: 'skill', medals: [400, 1500, 4000], music: 'meadow',
+    blurb: 'Pull back from the slime and let go to putt it. Bank off the blocks and sink it in the hole!',
+    pet: [16, 417],
+    thumb: function (g, w, h, tex, T) {
+      for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.GRASS].top, x, y);
+      g.drawImage(tex.blocks[T.LOG].top, 0, 0, 16, 16, 26, 16, 12, 12); g.fillStyle = '#140c08'; g.fillRect(48, 8, 8, 8); g.fillStyle = '#d8322b'; g.fillRect(55, 0, 2, 10); g.fillRect(50, 0, 5, 4);
+      g.fillStyle = '#5ef0a8'; g.fillRect(10, 36, 6, 6); g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(13, 39); g.lineTo(26, 30); g.stroke();
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, TOP = 26, b, hole, walls, sand, strokes, aim = null, sunk = 0, wait = 0, holes = 0;
+      function rectHit(r, x, y, m) { return x > r.x - m && x < r.x + r.w + m && y > r.y - m && y < r.y + r.h + m; }
+      function setup() {
+        b = { x: c.rnd(40, W - 40), y: H - 50, vx: 0, vy: 0 }; hole = { x: c.rnd(40, W - 40), y: c.rnd(60, 130) }; walls = []; sand = []; strokes = 0; aim = null;
+        var n = Math.min(9, 2 + c.level), tries = 0;
+        while (walls.length < n && tries++ < 200) { var horiz = Math.random() < 0.6, r = { x: c.rnd(10, W - 110), y: c.rnd(150, H - 130), w: horiz ? c.pick([64, 96]) : 20, h: horiz ? 20 : c.pick([64, 96]) }; if (!rectHit(r, b.x, b.y, 34) && !rectHit(r, hole.x, hole.y, 34) && !walls.some(function (o) { return r.x < o.x + o.w + 26 && r.x + r.w + 26 > o.x && r.y < o.y + o.h + 26 && r.y + r.h + 26 > o.y; })) walls.push(r); }
+        if (c.level > 2) sand.push({ x: c.rnd(20, W - 110), y: c.rnd(140, 240), w: 90, h: 50 });
+      }
+      function moving() { return Math.hypot(b.vx, b.vy) > 4; }
+      setup();
+      return {
+        tap: function (x, y) { if (!moving() && wait <= 0) aim = { x: x, y: y }; },
+        drag: function (x, y) { if (aim) { aim.x = x; aim.y = y; } },
+        up: function () {
+          if (!aim) return; var dx = c.sx - aim.x, dy = c.sy - aim.y, p = Math.min(150, Math.hypot(dx, dy)); aim = null; if (p < 10) return;
+          var a = Math.atan2(dy, dx); b.vx = Math.cos(a) * p * 4.2; b.vy = Math.sin(a) * p * 4.2; strokes++; c.fx('bonk');
+        },
+        lines: function () { return [['Holes sunk', holes]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0) setup(); return; }
+          if (!moving()) { b.vx = b.vy = 0; if (strokes >= 6) { if (!c.hit(b.x, b.y)) { c.say('TOO MANY PUTTS', 'NEXT HOLE', 1.1); wait = 1.2; strokes = 0; } } return; }
+          for (var st = 0; st < 3; st++) {
+            var h = dt / 3, ox = b.x, oy = b.y; b.x += b.vx * h; b.y += b.vy * h;
+            if (b.x < 7) { b.x = 7; b.vx = Math.abs(b.vx) * 0.8; } if (b.x > W - 7) { b.x = W - 7; b.vx = -Math.abs(b.vx) * 0.8; }
+            if (b.y < TOP + 7) { b.y = TOP + 7; b.vy = Math.abs(b.vy) * 0.8; } if (b.y > H - 7) { b.y = H - 7; b.vy = -Math.abs(b.vy) * 0.8; }
+            walls.forEach(function (r) {
+              if (!rectHit(r, b.x, b.y, 6)) return;
+              if (!rectHit(r, ox, b.y, 6)) { b.x = ox; b.vx = -b.vx * 0.8; } else if (!rectHit(r, b.x, oy, 6)) { b.y = oy; b.vy = -b.vy * 0.8; } else { b.x = ox; b.y = oy; b.vx = -b.vx * 0.8; b.vy = -b.vy * 0.8; }
+              c.fx('click');
+            });
+          }
+          var fr = sand.some(function (r) { return rectHit(r, b.x, b.y, 0); }) ? 4.2 : 1.25; b.vx -= b.vx * fr * dt; b.vy -= b.vy * fr * dt;
+          if (Math.hypot(b.x - hole.x, b.y - hole.y) < 11 && Math.hypot(b.vx, b.vy) < 330) {
+            holes++; var pts = Math.max(50, (7 - strokes) * 100) * c.level; c.add(pts, hole.x, hole.y - 20, '#ffe680'); c.fx('clear');
+            c.say(strokes === 1 ? 'HOLE IN ONE!' : strokes <= 3 ? 'NICE PUTT!' : 'IN THE HOLE', strokes + (strokes === 1 ? ' PUTT' : ' PUTTS'), 1.3);
+            if (strokes <= 2) c.ore(null, hole.x, hole.y - 40); c.levelUp(true); b.vx = b.vy = 0; b.x = hole.x; b.y = hole.y; wait = 1.5;
+          }
+        },
+        draw: function (g) {
+          c.fill(g, T.GRASS, 0, 0, W, H, 32); g.fillStyle = 'rgba(0,0,0,0.12)'; for (var y = TOP; y < H; y += 64) g.fillRect(0, y, W, 32);
+          sand.forEach(function (r) { c.fill(g, T.SAND, r.x, r.y, r.w, r.h, 16); });
+          g.fillStyle = '#0c080f'; g.fillRect(hole.x - 10, hole.y - 10, 20, 20); g.fillStyle = '#1b1822'; g.fillRect(hole.x - 8, hole.y - 8, 16, 16); g.fillStyle = '#e8e8ee'; g.fillRect(hole.x + 6, hole.y - 34, 2, 30); g.fillStyle = '#d8322b'; g.fillRect(hole.x + 8, hole.y - 34, 14, 10);
+          walls.forEach(function (r) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(r.x + 3, r.y + 4, r.w, r.h); for (var yy = r.y; yy < r.y + r.h; yy += 16) for (var xx = r.x; xx < r.x + r.w; xx += 16) c.block(g, T.LOG, xx, yy, Math.min(16, r.x + r.w - xx), Math.min(16, r.y + r.h - yy)); });
+          if (aim) {
+            var dx = c.sx - aim.x, dy = c.sy - aim.y, p = Math.min(150, Math.hypot(dx, dy)), a = Math.atan2(dy, dx);
+            g.fillStyle = '#fff'; for (var i = 1; i <= 6; i++) g.fillRect(b.x + Math.cos(a) * p * i * 0.16 - 2, b.y + Math.sin(a) * p * i * 0.16 - 2, 4, 4);
+            g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(W - 14, H - 150, 8, 120); g.fillStyle = p > 110 ? '#ff7a6a' : '#ffe680'; g.fillRect(W - 14, H - 30 - p * 0.8, 8, p * 0.8);
+          }
+          if (wait <= 0 || Math.floor(c.time * 8) % 2) { g.fillStyle = '#2f8a5a'; g.fillRect(b.x - 7, b.y - 7, 14, 14); g.fillStyle = '#5ef0a8'; g.fillRect(b.x - 6, b.y - 6, 12, 11); g.fillStyle = '#123'; g.fillRect(b.x - 3, b.y - 2, 2, 3); g.fillRect(b.x + 2, b.y - 2, 2, 3); }
+          c.text(g, 'HOLE ' + c.level + '  PUTTS ' + strokes + '/6', 6, 28, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Target Range: lead the moving targets with your arrows ----------
+  R({
+    id: 'range', name: 'Target Range', cat: 'skill', medals: [400, 1500, 4000], music: 'forest', lives: 0,
+    blurb: 'Tap where the monster is GOING to be — arrows take a moment to fly. Hit enough before you run out!',
+    pet: [18, 417],
+    thumb: function (g, w, h, tex, T) {
+      for (var x = 0; x < w; x += 16) { g.drawImage(tex.blocks[T.PLANKS].top, x, 0); g.drawImage(tex.blocks[T.PLANKS].top, x, 16); g.drawImage(tex.blocks[T.PLANKS].top, x, 32); }
+      g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(0, 0, w, h); g.drawImage(tex.mons.sly[0], 8, 6, 12, 12); g.drawImage(tex.mons.frost[0], 40, 20, 12, 12); g.fillStyle = '#ffe680'; g.fillRect(31, 28, 2, 12); g.fillStyle = '#6b4f2c'; g.fillRect(22, 44, 20, 3);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, tg = [], arrows = [], ammo, need, hits, sp = 0.5, total = 0, ROWS = [78, 138, 198, 258];
+      function start() { ammo = 24; hits = 0; need = 8 + c.level * 2; c.say('HIT ' + need, ammo + ' ARROWS', 1.3); }
+      start();
+      return {
+        tap: function (x, y) { if (ammo <= 0 || y < 40) return; ammo--; var bx = W / 2, by = H - 30, d = Math.hypot(x - bx, y - by); arrows.push({ x: bx, y: by, tx: x, ty: y, t: 0, dur: d / 560 }); c.fx('shoot'); },
+        lines: function () { return [['Targets hit', total]]; },
+        update: function (dt) {
+          sp -= dt;
+          if (sp <= 0) { sp = Math.max(0.4, 1.05 - c.level * 0.06); var row = c.ri(ROWS.length), dir = row % 2 ? -1 : 1, r = Math.random(); tg.push({ x: dir > 0 ? -16 : W + 16, y: ROWS[row], vx: dir * (58 + c.level * 9 + row * 10), kind: r < 0.07 ? 'ore' : r < 0.18 ? 'tnt' : c.pick(['sly', 'frost', 'mudge', 'rumble']), ore: c.oreRoll() }); }
+          tg.forEach(function (t) { t.x += t.vx * dt; }); tg = tg.filter(function (t) { return !t.dead && t.x > -30 && t.x < W + 30; });
+          arrows.forEach(function (a) {
+            a.t += dt; if (a.t < a.dur) return; a.dead = true; var hit = null;
+            tg.forEach(function (t) { if (!hit && !t.dead && Math.abs(t.x - a.tx) < 15 && Math.abs(t.y - a.ty) < 15) hit = t; });
+            if (!hit) { c.K.burst(a.tx, a.ty, '#6b4f2c', 4, 60); return; }
+            hit.dead = true;
+            if (hit.kind === 'tnt') { c.fx('boom'); c.K.burst(hit.x, hit.y, '#ff6a1f', 18, 200); ammo = Math.max(0, ammo - 3); c.K.pop(hit.x, hit.y - 16, '-3 ARROWS', '#ff7a6a'); c.shake = 0.3; return; }
+            hits++; total++; c.fx('bonk'); c.K.burst(hit.x, hit.y, '#c9ccd4', 8);
+            if (hit.kind === 'ore') c.ore(hit.ore, hit.x, hit.y - 16); c.add((20 + Math.round(Math.abs(hit.vx) / 4)) * c.level, hit.x, hit.y - 6);
+            if (hits >= need) { c.add(ammo * 10 * c.level, W / 2, H / 2, '#ffe680'); c.levelUp(); start(); }
+          });
+          arrows = arrows.filter(function (a) { return !a.dead; });
+          if (ammo <= 0 && !arrows.length && hits < need) c.end(false, 'Out of Arrows!');
+        },
+        draw: function (g) {
+          c.fill(g, T.PLANKS, 0, 0, W, H, 32); g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, 0, W, H);
+          ROWS.forEach(function (y) { g.fillStyle = '#4e381f'; g.fillRect(0, y + 14, W, 5); g.fillStyle = '#6b4f2c'; g.fillRect(0, y + 14, W, 2); });
+          tg.forEach(function (t) { if (t.kind === 'tnt') g.drawImage(c.tex.tnt[0], t.x - 12, t.y - 12, 24, 24); else if (t.kind === 'ore') c.block(g, c.oreTile(t.ore), t.x - 12, t.y - 12, 24); else c.mon(g, t.kind, t.x - 12, t.y - 12, 24, t.vx > 0 ? 3 : 1); });
+          arrows.forEach(function (a) { var f = a.t / a.dur, x = a.x + (a.tx - a.x) * f, y = a.y + (a.ty - a.y) * f, s = 10 - f * 5; g.fillStyle = '#ffe680'; g.fillRect(x - s / 4, y - s, s / 2, s * 2); g.strokeStyle = 'rgba(255,255,255,0.5)'; g.strokeRect(a.tx - 6, a.ty - 6, 12, 12); });
+          g.fillStyle = '#6b4f2c'; g.fillRect(W / 2 - 22, H - 28, 44, 5); g.fillStyle = '#e8e8ee'; g.fillRect(W / 2 - 1, H - 44, 2, 20);
+          c.text(g, 'ARROWS ' + ammo, 6, 28, 2, ammo < 6 ? '#ff7a6a' : '#fff'); c.text(g, 'HIT ' + hits + '/' + need, 6, 46, 1, '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Beat Blocks: tap each lane as its block reaches the line ----------
+  R({
+    id: 'beat', name: 'Beat Blocks', cat: 'skill', medals: [400, 1500, 4000], music: 'title', lives: 6,
+    blurb: 'Blocks fall in four lanes. Tap the lane the moment a block reaches the glowing line!',
+    controls: { dpad: true, a: null, b: null }, pet: [16, 44],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#16122a'; g.fillRect(0, 0, w, h); [T.GRASS, T.GOLD, T.DIAMOND, T.MAGMA].forEach(function (t, i) { g.fillStyle = 'rgba(255,255,255,0.06)'; g.fillRect(4 + i * 14, 0, 13, h); g.drawImage(tex.blocks[t].top, 0, 0, 16, 16, 5 + i * 14, [10, 26, 4, 18][i], 11, 11); });
+      g.fillStyle = '#ffe680'; g.fillRect(2, 38, 60, 2);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, LW = 70, LX = 20, LINE = H - 70, notes = [], sp = 1, hitN = 0, combo = 0, flash = [0, 0, 0, 0], best = 0;
+      var TILES = [T.GRASS, T.GOLD, T.DIAMOND, T.MAGMA], TONES = ['gem', 'hop', 'bonk', 'click'];
+      function press(l) {
+        if (l < 0 || l > 3) return; flash[l] = 0.15; var bestN = null, bd = 1e9;
+        notes.forEach(function (n) { var d = Math.abs(n.y - LINE); if (n.lane === l && !n.dead && d < bd) { bd = d; bestN = n; } });
+        if (!bestN || bd > 34) { combo = 0; c.fx('nope'); return; }
+        bestN.dead = true; hitN++; combo++; best = Math.max(best, combo); var perfect = bd < 13;
+        c.add((perfect ? 20 : 10) * (1 + Math.floor(combo / 10)), LX + l * LW + LW / 2, LINE - 24, perfect ? '#ffe680' : '#fff'); c.fx(TONES[l]); c.K.burst(LX + l * LW + LW / 2, LINE, c.tex.blocks[TILES[l]].avg, 8, 120);
+        if (hitN % 20 === 0) { c.levelUp(); c.lives = Math.min(6, c.lives + 1); c.ore(null, W / 2, 120); }
+      }
+      return {
+        tap: function (x) { press(Math.floor((x - LX) / LW)); }, dir: function (d) { press([2, 0, 1, 3][d]); },
+        lines: function () { return [['Notes hit', hitN], ['Best combo', best]]; },
+        update: function (dt) {
+          var v = 150 + c.level * 20;
+          sp -= dt; if (sp <= 0) { sp = Math.max(0.26, 0.62 - c.level * 0.04) * c.pick([1, 1, 1, 0.5, 2]); notes.push({ lane: c.ri(4), y: 18 }); if (c.level > 3 && Math.random() < 0.15) notes.push({ lane: c.ri(4), y: 18 }); }
+          notes.forEach(function (n) { n.y += v * dt; if (!n.dead && n.y > LINE + 40) { n.dead = true; combo = 0; c.hit(LX + n.lane * LW + LW / 2, LINE + 20); } });
+          notes = notes.filter(function (n) { return !n.dead; });
+          for (var i = 0; i < 4; i++) if (flash[i] > 0) flash[i] -= dt;
+        },
+        draw: function (g) {
+          g.fillStyle = '#16122a'; g.fillRect(0, 0, W, H);
+          for (var l = 0; l < 4; l++) { g.fillStyle = flash[l] > 0 ? 'rgba(255,255,255,0.22)' : (l % 2 ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)'); g.fillRect(LX + l * LW, 22, LW, H - 22); g.globalAlpha = 0.35; c.block(g, TILES[l], LX + l * LW + 15, LINE - 20, 40); g.globalAlpha = 1; }
+          g.fillStyle = Math.floor(c.time * 4) % 2 ? '#ffe680' : '#fff3a8'; g.fillRect(LX, LINE - 22, LW * 4, 3); g.fillRect(LX, LINE + 20, LW * 4, 3);
+          notes.forEach(function (n) { c.block(g, TILES[n.lane], LX + n.lane * LW + 15, n.y - 20, 40); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(LX + n.lane * LW + 15, n.y - 20, 40, 3); });
+          if (combo >= 5) c.ctext(g, combo + ' COMBO', W / 2, 30, 2, '#ffe680');
+          ['◀', '▼', '▲', '▶'].forEach(function (a, i) { c.ctext(g, ['L', 'D', 'U', 'R'][i], LX + i * LW + LW / 2, H - 22, 2, 'rgba(255,255,255,0.4)'); });
+        }
+      };
+    }
+  });
+})();
+
+
+/* Blockcade v4.0 — puzzle pack 1: Ore Merge, Block Pop, TNT Sweeper, Block Pairs, Echo Blocks. */
+(function () {
+  'use strict';
+  var R = PCMini.reg, DX = PCMini.DX, DY = PCMini.DY;
+
+  // ---------- Ore Merge: slide and merge blocks up the ore ladder ----------
+  R({
+    id: 'merge', name: 'Ore Merge', cat: 'puzzle', medals: [2000, 6000, 15000], music: 'caves', lives: 0,
+    blurb: 'Swipe to slide every block. Two of the same merge into the next one up — all the way to emberite!',
+    controls: { dpad: true, a: null, b: null }, pet: [18, 416],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#241c2c'; g.fillRect(0, 0, w, h); [[T.DIRT, 0, 0], [T.STONE, 1, 0], [T.COAL, 2, 1], [T.IRON, 1, 1], [T.GOLD, 2, 2], [T.DIAMOND, 3, 2], [T.DIRT, 0, 2]].forEach(function (b) { g.drawImage(tex.blocks[b[0]].top, 0, 0, 16, 16, 8 + b[1] * 12, 6 + b[2] * 12, 11, 11); });
+    },
+    make: function (c) {
+      var W = c.W, T = c.T, N = 4, CS = 68, OX = 24, OY = 70, cells = [], got = {}, moves = 0, top = 1;
+      var TIERS = [T.DIRT, T.COBBLE, T.STONE, T.COAL, T.IRON, T.GOLD, T.DIAMOND, T.EMBER, T.CRYSTAL, T.MAGMA], ORE = { 4: 'coal', 5: 'iron', 6: 'gold', 7: 'diamond', 8: 'ember' };
+      for (var i = 0; i < 16; i++) cells.push(0);
+      function spawn() { var e = []; cells.forEach(function (v, i) { if (!v) e.push(i); }); if (e.length) cells[c.pick(e)] = Math.random() < 0.88 ? 1 : 2; }
+      function canMove() { for (var i = 0; i < 16; i++) { if (!cells[i]) return true; var x = i % 4, y = i >> 2; if (x < 3 && cells[i + 1] === cells[i]) return true; if (y < 3 && cells[i + 4] === cells[i]) return true; } return false; }
+      function slide(d) {
+        if (d < 0) return; var moved = false;
+        for (var a = 0; a < 4; a++) {
+          var line = []; for (var b = 0; b < 4; b++) { var k = d === 1 ? b : d === 3 ? 3 - b : d === 0 ? b : 3 - b; line.push(d % 2 ? a * 4 + k : k * 4 + a); }
+          var vals = line.map(function (ix) { return cells[ix]; }).filter(function (v) { return v; }), out = [];
+          for (var j = 0; j < vals.length; j++) {
+            if (vals[j] === vals[j + 1] && vals[j] < TIERS.length) { var nv = vals[j] + 1; out.push(nv); j++; c.add(Math.pow(2, nv) * 2); if (nv > top) { top = nv; if (ORE[nv] && !got[nv]) { got[nv] = 1; c.ore(ORE[nv], W / 2, OY - 14); } if (nv >= 4) c.levelUp(true); } }
+            else out.push(vals[j]);
+          }
+          while (out.length < 4) out.push(0);
+          line.forEach(function (ix, n) { if (cells[ix] !== out[n]) moved = true; cells[ix] = out[n]; });
+        }
+        if (!moved) return; moves++; c.fx('place'); spawn(); if (!canMove()) c.end(false, 'No Moves Left!');
+      }
+      spawn(); spawn();
+      return {
+        dir: slide, up: function () { slide(PCMini.swipe(c)); }, lines: function () { return [['Moves', moves]]; },
+        update: function () { },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, c.H); g.fillStyle = '#0c080f'; g.fillRect(OX - 6, OY - 6, CS * 4 + 12, CS * 4 + 12);
+          cells.forEach(function (v, i) { var x = OX + (i % 4) * CS, y = OY + (i >> 2) * CS; g.fillStyle = '#2a2230'; g.fillRect(x + 2, y + 2, CS - 4, CS - 4); if (!v) return; c.block(g, TIERS[v - 1], x + 3, y + 3, CS - 6); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(x + 3, y + 3, CS - 6, 4); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 3, y + CS - 8, CS - 6, 5); c.text(g, v, x + 7, y + 8, 2, '#fff'); });
+          c.text(g, 'SWIPE TO MERGE', 24, 34, 2, '#ffe680'); for (var t = 0; t < TIERS.length; t++) { g.globalAlpha = t < top ? 1 : 0.3; c.block(g, TIERS[t], 24 + t * 20, 50, 16); } g.globalAlpha = 1;
+        }
+      };
+    }
+  });
+
+  // ---------- Block Pop: tap groups of matching blocks ----------
+  R({
+    id: 'samegame', name: 'Block Pop', cat: 'puzzle', medals: [2500, 7000, 15000], music: 'meadow', lives: 0,
+    blurb: 'Tap a group of two or more matching blocks to pop them. Bigger groups score much more. Clear the board!',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      var k = [T.GRASS, T.SAND, T.ICE, T.CLAY]; for (var y = 0; y < 4; y++) for (var x = 0; x < 6; x++) g.drawImage(tex.blocks[k[(x * 3 + y * 5 + (x * y) % 3) % 4]].top, 0, 0, 16, 16, 2 + x * 10, 6 + y * 10, 10, 10);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, COLS = 8, ROWS = 10, CS = 38, OX = 8, OY = 30, grid, hover = [], popped = 0;
+      var KINDS = [T.GRASS, T.SAND, T.ICE, T.CLAY, T.MOSS, T.MAGMA];
+      function at(x, y) { return x < 0 || y < 0 || x >= COLS || y >= ROWS ? 0 : grid[y * COLS + x]; }
+      function group(x, y) { var k = at(x, y), out = [], seen = {}; if (!k) return out; var st = [[x, y]]; while (st.length) { var p = st.pop(), id = p[1] * COLS + p[0]; if (seen[id] || at(p[0], p[1]) !== k) continue; seen[id] = 1; out.push(id); for (var d = 0; d < 4; d++) st.push([p[0] + DX[d], p[1] + DY[d]]); } return out; }
+      function fillBoard() { var n = Math.min(6, 3 + Math.ceil(c.level / 2)); grid = []; for (var i = 0; i < COLS * ROWS; i++) grid.push(1 + c.ri(n)); }
+      function collapse() {
+        for (var x = 0; x < COLS; x++) { var col = []; for (var y = ROWS - 1; y >= 0; y--) if (grid[y * COLS + x]) col.push(grid[y * COLS + x]); for (var y2 = ROWS - 1, i = 0; y2 >= 0; y2--, i++) grid[y2 * COLS + x] = col[i] || 0; }
+        var keep = []; for (var x2 = 0; x2 < COLS; x2++) if (grid[(ROWS - 1) * COLS + x2]) keep.push(x2);
+        var ng = []; for (var j = 0; j < COLS * ROWS; j++) ng.push(0); keep.forEach(function (sx, nx) { for (var y3 = 0; y3 < ROWS; y3++) ng[y3 * COLS + nx] = grid[y3 * COLS + sx]; }); grid = ng;
+      }
+      function anyMove() { for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) { var k = at(x, y); if (k && (at(x + 1, y) === k || at(x, y + 1) === k)) return true; } return false; }
+      fillBoard();
+      return {
+        tap: function (px, py) {
+          var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS), gp = group(x, y);
+          if (gp.length < 2) { c.fx('nope'); return; }
+          var tile = KINDS[at(x, y) - 1]; gp.forEach(function (id) { grid[id] = 0; c.K.burst(OX + (id % COLS) * CS + CS / 2, OY + Math.floor(id / COLS) * CS + CS / 2, c.tex.blocks[tile].avg, 3, 100); });
+          popped += gp.length; c.add(gp.length * gp.length * 5, px, py - 10, gp.length >= 6 ? '#ffe680' : '#fff'); c.fx(gp.length >= 6 ? 'crystal' : 'crumble'); if (gp.length >= 9) c.ore(null, px, py - 30);
+          collapse();
+          if (anyMove()) return;
+          var leftN = grid.filter(function (v) { return v; }).length;
+          if (leftN <= 8) { c.add((leftN === 0 ? 500 : 100) * c.level, W / 2, H / 2, '#ffe680'); if (leftN === 0) c.ore(null, W / 2, H / 2 - 30); c.levelUp(); fillBoard(); }
+          else c.end(false, 'No More Groups!', [['Blocks left', leftN]]);
+        },
+        lines: function () { return [['Blocks popped', popped]]; },
+        update: function () { },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          for (var i = 0; i < grid.length; i++) { if (!grid[i]) continue; var x = OX + (i % COLS) * CS, y = OY + Math.floor(i / COLS) * CS; c.block(g, KINDS[grid[i] - 1], x + 1, y + 1, CS - 2); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x + 1, y + 1, CS - 2, 3); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 1, y + CS - 5, CS - 2, 4); }
+        }
+      };
+    }
+  });
+
+  // ---------- TNT Sweeper: uncover every safe tile ----------
+  R({
+    id: 'sweeper', name: 'TNT Sweeper', cat: 'puzzle', medals: [400, 1500, 4000], music: 'caves',
+    blurb: 'Dig every tile that is NOT hiding TNT. Numbers count the TNT touching that tile. FLAG marks a suspect.',
+    controls: { dpad: false, a: null, b: 'FLAG' }, pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      for (var y = 0; y < 4; y++) for (var x = 0; x < 5; x++) { var open = (x + y) % 3 === 0 || (x === 2 && y < 3); g.drawImage(tex.blocks[open ? T.DIRT : T.GRASS].top, 0, 0, 16, 16, 2 + x * 12, 1 + y * 12, 11, 11); if (open) { g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(2 + x * 12, 1 + y * 12, 11, 11); } }
+      g.drawImage(tex.tnt[0], 39, 14, 9, 9); PCTex.drawText(g, '2', 17, 15, 1, '#7dff8a', '#000');
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, COLS = 8, ROWS = 9, CS = 38, OX = 8, OY = 34, cells, first, flag = false, safeLeft, cleared = 0;
+      var NUMC = ['', '#7df9ff', '#7dff8a', '#ffe680', '#ff9a5a', '#ff7a6a', '#ff6bd6', '#fff', '#fff'];
+      function nb(i, fn) { var x = i % COLS, y = Math.floor(i / COLS); for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var nx = x + dx, ny = y + dy; if ((dx || dy) && nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS) fn(ny * COLS + nx); } }
+      function setup() { cells = []; for (var i = 0; i < COLS * ROWS; i++) cells.push({ tnt: false, open: false, flag: false, n: 0 }); first = true; }
+      function plant(safe) {
+        var n = Math.min(22, 7 + c.level * 2), ban = {}; ban[safe] = 1; nb(safe, function (j) { ban[j] = 1; });
+        while (n > 0) { var i = c.ri(cells.length); if (ban[i] || cells[i].tnt) continue; cells[i].tnt = true; n--; }
+        cells.forEach(function (cl, i) { nb(i, function (j) { if (cells[j].tnt) cl.n++; }); }); safeLeft = cells.filter(function (cl) { return !cl.tnt; }).length;
+      }
+      function open(i) {
+        var st = [i]; while (st.length) { var k = st.pop(), cl = cells[k]; if (cl.open || cl.flag || cl.tnt) continue; cl.open = true; safeLeft--; c.add(5); if (!cl.n) nb(k, function (j) { st.push(j); }); }
+      }
+      setup();
+      return {
+        b: function () { flag = !flag; c.fx('click'); },
+        tap: function (px, py) {
+          var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return; var i = y * COLS + x, cl = cells[i];
+          if (cl.open) return;
+          if (flag) { cl.flag = !cl.flag; c.fx('place'); return; }
+          if (cl.flag) return;
+          if (first) { first = false; plant(i); }
+          if (cl.tnt) { cl.open = true; cl.boom = true; cl.flag = false; c.fx('boom'); c.K.burst(px, py, '#ff6a1f', 18, 200); c.hit(px, py); return; }
+          c.fx('mined', { tile: T.DIRT }); open(i);
+          if (safeLeft <= 0) { cleared++; c.add(200 * c.level, W / 2, H / 2, '#ffe680'); c.fx('clear'); c.ore(null, W / 2, H / 2 - 30); c.levelUp(); setup(); }
+        },
+        lines: function () { return [['Fields cleared', cleared]]; },
+        update: function () { },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          cells.forEach(function (cl, i) {
+            var x = OX + (i % COLS) * CS, y = OY + Math.floor(i / COLS) * CS;
+            if (!cl.open) { c.block(g, T.GRASS, x + 1, y + 1, CS - 2); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x + 1, y + 1, CS - 2, 3); if (cl.flag) { g.fillStyle = '#e8e8ee'; g.fillRect(x + 12, y + 8, 3, 22); g.fillStyle = '#d8322b'; g.fillRect(x + 15, y + 8, 12, 9); } return; }
+            c.block(g, T.DIRT, x + 1, y + 1, CS - 2); g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+            if (cl.boom) g.drawImage(c.tex.tnt[1], x + 5, y + 5, CS - 10, CS - 10); else if (cl.n) c.ctext(g, cl.n, x + CS / 2, y + 9, 3, NUMC[cl.n]);
+          });
+          c.text(g, flag ? 'FLAG MODE' : 'DIG MODE', 100, 26, 1, flag ? '#ff7a6a' : '#7dff8a');
+        }
+      };
+    }
+  });
+
+  // ---------- Block Pairs: memory match ----------
+  R({
+    id: 'pairs', name: 'Block Pairs', cat: 'puzzle', medals: [300, 1200, 3500], music: 'snow',
+    blurb: 'Flip two cards. Find every matching pair. Five misses cost a heart, so remember what you saw!',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      for (var y = 0; y < 3; y++) for (var x = 0; x < 4; x++) { g.fillStyle = '#3b5cc4'; g.fillRect(4 + x * 15, 2 + y * 15, 13, 13); g.fillStyle = '#5a7ae0'; g.fillRect(6 + x * 15, 4 + y * 15, 9, 9); }
+      g.fillStyle = '#fbf7ff'; g.fillRect(19, 17, 13, 13); g.fillRect(49, 2, 13, 13); g.drawImage(tex.ores.gold, 20, 18, 11, 11); g.drawImage(tex.ores.gold, 50, 3, 11, 11);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, cards, cols, rows, CS, OX, OY, sel = [], lock = 0, left, miss = 0, found = 0;
+      var FACES = [];
+      ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { FACES.push(function (g, x, y, s) { c.oreIcon(g, k, x, y, s); }); });
+      ['rumble', 'sly', 'frost', 'mudge'].forEach(function (k) { FACES.push(function (g, x, y, s) { g.drawImage(c.tex.mons[k][0], x, y, s, s); PCTex.drawEyes(g, x, y, s / 16, 2); }); });
+      [T.GRASS, T.PLANKS, T.ICE, T.MAGMA, T.CRYSTAL, T.LEAVES].forEach(function (t) { FACES.push(function (g, x, y, s) { c.block(g, t, x, y, s); }); });
+      FACES.push(function (g, x, y, s) { g.drawImage(c.tex.tnt[0], x, y, s, s); }); FACES.push(function (g, x, y, s) { g.drawImage(c.tex.crystal, x + s * 0.12, y, s * 0.76, s); });
+      ['apple', 'cake', 'carrot'].forEach(function (k) { FACES.push(function (g, x, y, s) { g.drawImage(c.tex.food[k], x, y, s, s); }); });
+      function setup() {
+        var sz = [[3, 4], [4, 4], [4, 5], [5, 6], [5, 6]][Math.min(4, c.level - 1)]; cols = sz[0]; rows = sz[1]; left = cols * rows / 2;
+        var f = c.shuffle(FACES.map(function (_, i) { return i; })).slice(0, left), deck = c.shuffle(f.concat(f));
+        cards = deck.map(function (v) { return { v: v, up: false, gone: false }; });
+        CS = Math.min(Math.floor((W - 16) / cols), Math.floor((H - 50) / rows)); OX = (W - cols * CS) / 2; OY = 34 + (H - 44 - rows * CS) / 2; sel = []; lock = 0;
+      }
+      setup();
+      return {
+        tap: function (px, py) {
+          if (lock > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= cols || y >= rows) return;
+          var cd = cards[y * cols + x]; if (cd.up || cd.gone) return; cd.up = true; sel.push(cd); c.fx('click');
+          if (sel.length < 2) return;
+          if (sel[0].v === sel[1].v) { sel[0].gone = sel[1].gone = true; sel = []; left--; found++; c.add(50 * c.level, px, py - 10, '#ffe680'); c.fx('crystal'); if (left <= 0) { c.add(150 * c.level, W / 2, H / 2, '#ffe680'); c.ore(null, W / 2, H / 2 - 30); c.levelUp(); lock = 0.9; setTimeout(setup, 800); } }
+          else { lock = 0.75; miss++; if (miss % 5 === 0) c.hit(px, py); else c.fx('nope'); }
+        },
+        lines: function () { return [['Pairs found', found], ['Misses', miss]]; },
+        update: function (dt) { if (lock > 0) { lock -= dt; if (lock <= 0 && sel.length === 2) { sel[0].up = sel[1].up = false; sel = []; } } },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          cards.forEach(function (cd, i) {
+            var x = OX + (i % cols) * CS, y = OY + Math.floor(i / cols) * CS;
+            if (cd.gone && !cd.up) return; if (cd.gone) g.globalAlpha = 0.35;
+            if (cd.up) { g.fillStyle = '#0c080f'; g.fillRect(x + 2, y + 2, CS - 4, CS - 4); g.fillStyle = '#fbf7ff'; g.fillRect(x + 4, y + 4, CS - 8, CS - 8); FACES[cd.v](g, x + 9, y + 9, CS - 18); }
+            else { g.fillStyle = '#0c080f'; g.fillRect(x + 2, y + 2, CS - 4, CS - 4); g.fillStyle = '#3b5cc4'; g.fillRect(x + 4, y + 4, CS - 8, CS - 8); g.fillStyle = '#5a7ae0'; g.fillRect(x + 8, y + 8, CS - 16, CS - 16); c.ctext(g, '?', x + CS / 2, y + CS / 2 - 10, 3, '#fff'); }
+            g.globalAlpha = 1;
+          });
+          c.text(g, 'MISSES ' + (miss % 5) + '/5', 100, 26, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Echo Blocks: repeat the growing pattern ----------
+  R({
+    id: 'echo', name: 'Echo Blocks', cat: 'puzzle', medals: [200, 600, 1500], music: 'crystal',
+    blurb: 'Watch the blocks light up, then tap them back in the same order. The pattern grows every round!',
+    controls: { dpad: true, a: null, b: null }, pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#16122a'; g.fillRect(0, 0, w, h); [[T.GRASS, 12, 4], [T.MAGMA, 34, 4], [T.DIAMOND, 12, 26], [T.GOLD, 34, 26]].forEach(function (b, i) { g.globalAlpha = i === 1 ? 1 : 0.45; g.drawImage(tex.blocks[b[0]].top, 0, 0, 16, 16, b[1], b[2], 18, 18); }); g.globalAlpha = 1;
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, seq = [], pos = 0, mode = 'show', t = 1, showI = 0, lit = -1, litT = 0, best = 0;
+      var PADS = [{ x: 28, y: 70, t: T.GRASS, f: 392 }, { x: 168, y: 70, t: T.MAGMA, f: 494 }, { x: 28, y: 220, t: T.DIAMOND, f: 587 }, { x: 168, y: 220, t: T.GOLD, f: 784 }], PS = 124, SND = ['gem', 'hop', 'bonk', 'foodspawn'];
+      function light(i) { lit = i; litT = 0.28; c.fx(SND[i]); }
+      function grow() { seq.push(c.ri(4)); mode = 'show'; showI = 0; t = 0.7; pos = 0; }
+      function press(i) {
+        if (mode !== 'play' || i < 0) return; light(i);
+        if (seq[pos] !== i) { mode = 'show'; showI = 0; pos = 0; t = 1.1; c.say('WATCH AGAIN', null, 0.9); c.hit(PADS[i].x + PS / 2, PADS[i].y + PS / 2); return; }
+        pos++; c.add(10 * c.level);
+        if (pos >= seq.length) { best = Math.max(best, seq.length); c.add(seq.length * 10, W / 2, 56, '#ffe680'); if (seq.length % 5 === 0) { c.levelUp(); c.ore(null, W / 2, 40); } grow(); }
+      }
+      grow();
+      return {
+        tap: function (x, y) { for (var i = 0; i < 4; i++) if (x >= PADS[i].x && x < PADS[i].x + PS && y >= PADS[i].y && y < PADS[i].y + PS) press(i); },
+        dir: function (d) { press([0, 2, 3, 1][d]); },
+        lines: function () { return [['Longest pattern', best]]; },
+        update: function (dt) {
+          if (litT > 0) { litT -= dt; if (litT <= 0) lit = -1; }
+          if (mode !== 'show') return; t -= dt; if (t > 0) return;
+          if (showI >= seq.length) { mode = 'play'; return; }
+          light(seq[showI++]); t = Math.max(0.3, 0.62 - c.level * 0.05);
+        },
+        draw: function (g) {
+          g.fillStyle = '#16122a'; g.fillRect(0, 0, W, H);
+          PADS.forEach(function (p, i) { g.fillStyle = '#0c080f'; g.fillRect(p.x - 4, p.y - 4, PS + 8, PS + 8); g.globalAlpha = lit === i ? 1 : 0.42; c.block(g, p.t, p.x, p.y, PS); g.globalAlpha = 1; if (lit === i) { g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(p.x - 2, p.y - 2, PS + 4, PS + 4); } });
+          c.ctext(g, mode === 'show' ? 'WATCH...' : 'YOUR TURN!', W / 2, 30, 2, mode === 'show' ? '#7df9ff' : '#7dff8a'); c.ctext(g, 'PATTERN ' + seq.length, W / 2, 360, 2, '#ffe680');
+          for (var i = 0; i < seq.length && i < 24; i++) { g.fillStyle = i < pos ? '#7dff8a' : 'rgba(255,255,255,0.25)'; g.fillRect(W / 2 - Math.min(seq.length, 24) * 6 + i * 12, 382, 8, 8); }
+        }
+      };
+    }
+  });
+})();
+
+
+/* Blockcade v4.0 — puzzle pack 2 (all against the clock): Lamp Flip, Slide Tiles, Ice Slide, Pipe Twist, Pixel Picross. */
+(function () {
+  'use strict';
+  var R = PCMini.reg, DX = PCMini.DX, DY = PCMini.DY;
+  function solved(c, pts, bonusT, msg) { c.add(pts, c.W / 2, c.H / 2 - 20, '#ffe680'); c.fx('clear'); c.clock = Math.min(c.clockMax, c.clock + bonusT); c.levelUp(true); c.say(msg || 'SOLVED!', '+' + bonusT + ' SECONDS', 1.1); if (c.level % 2 === 1) c.ore(null, c.W / 2, c.H / 2 - 50); }
+
+  // ---------- Lamp Flip: light every lamp ----------
+  R({
+    id: 'lamps', name: 'Lamp Flip', cat: 'puzzle', medals: [300, 1000, 2500], music: 'crystal', lives: 0, clock: 90,
+    blurb: 'Tap a lamp to flip it AND its four neighbours. Light up every lamp before time runs out.',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) { for (var y = 0; y < 3; y++) for (var x = 0; x < 4; x++) { var on = (x + y * 2) % 3 !== 0; g.drawImage(tex.blocks[on ? T.GOLD : T.BASALT].top, 0, 0, 16, 16, 4 + x * 14, 3 + y * 14, 13, 13); if (on) { g.fillStyle = 'rgba(255,240,140,0.45)'; g.fillRect(4 + x * 14, 3 + y * 14, 13, 13); } } },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, N = 5, CS = 58, OX = 15, OY = 70, cells, moves, wait = 0, done = 0;
+      function flip(i) { var x = i % N, y = Math.floor(i / N); cells[i] ^= 1; for (var d = 0; d < 4; d++) { var nx = x + DX[d], ny = y + DY[d]; if (nx >= 0 && ny >= 0 && nx < N && ny < N) cells[ny * N + nx] ^= 1; } }
+      function setup() { cells = []; for (var i = 0; i < N * N; i++) cells.push(1); var k = Math.min(12, 2 + c.level), used = {}; while (k > 0) { var j = c.ri(N * N); if (used[j]) continue; used[j] = 1; flip(j); k--; } if (cells.every(function (v) { return v; })) flip(12); moves = 0; }
+      setup();
+      return {
+        tap: function (px, py) {
+          if (wait > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= N || y >= N) return;
+          flip(y * N + x); moves++; c.fx('click');
+          if (cells.every(function (v) { return v; })) { done++; solved(c, Math.max(60, 300 - moves * 8) * c.level, 25, 'ALL LIT!'); wait = 1.1; }
+        },
+        lines: function () { return [['Boards lit', done]]; },
+        update: function (dt) { if (wait > 0) { wait -= dt; if (wait <= 0) setup(); } },
+        draw: function (g) {
+          g.fillStyle = '#16122a'; g.fillRect(0, 0, W, H);
+          cells.forEach(function (v, i) { var x = OX + (i % N) * CS, y = OY + Math.floor(i / N) * CS; g.fillStyle = '#0c080f'; g.fillRect(x + 1, y + 1, CS - 2, CS - 2); c.block(g, v ? T.GOLD : T.BASALT, x + 4, y + 4, CS - 8); if (v) { g.fillStyle = 'rgba(255,240,140,' + (0.4 + Math.sin(c.time * 4 + i) * 0.1) + ')'; g.fillRect(x + 4, y + 4, CS - 8, CS - 8); } else { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + 4, y + 4, CS - 8, CS - 8); } });
+          c.text(g, 'LIGHT THEM ALL', 15, 34, 2, '#ffe680'); c.text(g, 'MOVES ' + moves, 15, 52, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Slide Tiles: put the numbered blocks back in order ----------
+  R({
+    id: 'slide', name: 'Slide Tiles', cat: 'puzzle', medals: [300, 1000, 2500], music: 'snow', lives: 0, clock: 100,
+    blurb: 'Tap a block next to the gap to slide it. Put the numbers back in order, 1 first.',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) { [1, 2, 3, 4, 0, 6, 7, 5, 8].forEach(function (v, i) { if (!v) return; var x = 12 + (i % 3) * 14, y = 3 + Math.floor(i / 3) * 14; g.drawImage(tex.blocks[T.PLANKS].top, 0, 0, 16, 16, x, y, 13, 13); PCTex.drawText(g, String(v), x + 4, y + 3, 1, '#fff', '#000'); }); },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, N, cells, CS, OX, OY = 76, moves, wait = 0, done = 0;
+      var SKIN = [T.PLANKS, T.SANDSTONE, T.ICE, T.CLAY];
+      function hole() { return cells.indexOf(0); }
+      function move(i) { var hl = hole(), dx = Math.abs(i % N - hl % N), dy = Math.abs(Math.floor(i / N) - Math.floor(hl / N)); if (dx + dy !== 1) return false; cells[hl] = cells[i]; cells[i] = 0; return true; }
+      function isDone() { for (var i = 0; i < N * N - 1; i++) if (cells[i] !== i + 1) return false; return true; }
+      function setup() {
+        N = c.level >= 4 ? 4 : 3; cells = []; for (var i = 1; i < N * N; i++) cells.push(i); cells.push(0);
+        var n = 14 + c.level * 10, last = -1;
+        while (n > 0 || isDone()) { var hl = hole(), opts = []; for (var d = 0; d < 4; d++) { var x = hl % N + DX[d], y = Math.floor(hl / N) + DY[d]; if (x >= 0 && y >= 0 && x < N && y < N && y * N + x !== last) opts.push(y * N + x); } var pk = c.pick(opts); last = hl; move(pk); n--; }
+        CS = Math.floor(288 / N); OX = (W - CS * N) / 2; moves = 0;
+      }
+      setup();
+      return {
+        tap: function (px, py) {
+          if (wait > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= N || y >= N) return;
+          if (!move(y * N + x)) { c.fx('nope'); return; } moves++; c.fx('place');
+          if (isDone()) { done++; solved(c, (N === 4 ? 600 : 250) * c.level, N === 4 ? 60 : 30, 'IN ORDER!'); wait = 1.1; }
+        },
+        lines: function () { return [['Puzzles solved', done]]; },
+        update: function (dt) { if (wait > 0) { wait -= dt; if (wait <= 0) setup(); } },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); g.fillStyle = '#0c080f'; g.fillRect(OX - 6, OY - 6, CS * N + 12, CS * N + 12);
+          cells.forEach(function (v, i) { if (!v) return; var x = OX + (i % N) * CS, y = OY + Math.floor(i / N) * CS, ok = v === i + 1; c.block(g, SKIN[Math.floor((v - 1) / N) % 4], x + 2, y + 2, CS - 4); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(x + 2, y + 2, CS - 4, 4); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 2, y + CS - 7, CS - 4, 5); c.ctext(g, v, x + CS / 2, y + CS / 2 - 14, 4, ok ? '#7dff8a' : '#fff'); });
+          c.text(g, 'MOVES ' + moves, OX, 34, 2, '#ffe680'); c.text(g, '1 GOES TOP LEFT', OX, 54, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Ice Slide: you only stop when you hit something ----------
+  R({
+    id: 'iceslide', name: 'Ice Slide', cat: 'puzzle', medals: [800, 2500, 6000], music: 'snow', lives: 0, clock: 90,
+    blurb: 'On the ice you slide until you bump into something. Swipe your way to the emerald.',
+    controls: { dpad: true, a: null, b: null }, pet: [18, 418],
+    thumb: function (g, w, h, tex, T) { for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.ICE].top, x, y); [[16, 0], [48, 16], [0, 32]].forEach(function (p) { g.drawImage(tex.blocks[T.COBBLE].top, p[0], p[1]); }); g.drawImage(PCTex.hero(PCTex.LOOK_DEFAULT).right[1], 2, 15, 14, 14); g.fillStyle = '#5ef0a8'; g.fillRect(38, 20, 7, 7); },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, COLS = 9, ROWS = 10, CS = 34, OX = 7, OY = 60, rock, p, goal, par, moves, anim = null, face = 2, wait = 0, done = 0, start;
+      function blocked(x, y) { return x < 0 || y < 0 || x >= COLS || y >= ROWS || rock[y * COLS + x]; }
+      function slideFrom(x, y, d) { while (!blocked(x + DX[d], y + DY[d])) { x += DX[d]; y += DY[d]; } return [x, y]; }
+      function setup() {
+        for (var tries = 0; tries < 200; tries++) {
+          rock = []; for (var i = 0; i < COLS * ROWS; i++) rock.push(Math.random() < 0.15 ? 1 : 0);
+          var sx = c.ri(COLS), sy = c.ri(ROWS); rock[sy * COLS + sx] = 0;
+          var dist = {}, q = [[sx, sy]]; dist[sy * COLS + sx] = 0; var far = null;
+          while (q.length) { var cur = q.shift(), cd = dist[cur[1] * COLS + cur[0]]; for (var d = 0; d < 4; d++) { var e = slideFrom(cur[0], cur[1], d), id = e[1] * COLS + e[0]; if (dist[id] == null) { dist[id] = cd + 1; q.push(e); } } }
+          var want = Math.max(2, Math.min(7, 2 + Math.ceil(c.level / 2)) - Math.floor(tries / 30)), cands = Object.keys(dist).filter(function (k) { return dist[k] === want; });
+          if (!cands.length) continue; far = +c.pick(cands);
+          p = { x: sx, y: sy }; start = { x: sx, y: sy }; goal = { x: far % COLS, y: Math.floor(far / COLS) }; par = want; moves = 0; anim = null; return;
+        }
+      }
+      function go(d) {
+        if (d < 0 || anim || wait > 0) return; var e = slideFrom(p.x, p.y, d); face = d; if (e[0] === p.x && e[1] === p.y) { c.fx('nope'); return; }
+        anim = { fx: p.x, fy: p.y, tx: e[0], ty: e[1], t: 0, dur: 0.05 * (Math.abs(e[0] - p.x) + Math.abs(e[1] - p.y)) + 0.04 }; moves++; c.fx('hop');
+      }
+      setup();
+      return {
+        dir: go, up: function () { go(PCMini.swipe(c)); }, lines: function () { return [['Emeralds reached', done]]; },
+        b: function () { }, update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0) setup(); return; }
+          if (!anim) return; anim.t += dt; if (anim.t < anim.dur) return;
+          p.x = anim.tx; p.y = anim.ty; anim = null; c.fx('hit', { tile: T.ICE });
+          if (p.x === goal.x && p.y === goal.y) { done++; solved(c, (moves <= par ? 300 : 150) * c.level, 22, moves <= par ? 'PERFECT!' : 'GOT IT!'); wait = 1.1; }
+          else if (moves >= par + 6) { c.say('TRY AGAIN', null, 0.8); p.x = start.x; p.y = start.y; moves = 0; }
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) { c.block(g, T.ICE, OX + x * CS, OY + y * CS, CS); if (rock[y * COLS + x]) { c.block(g, T.COBBLE, OX + x * CS + 1, OY + y * CS - 3, CS - 2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(OX + x * CS + 1, OY + y * CS + CS - 6, CS - 2, 4); } }
+          var gx = OX + goal.x * CS + CS / 2, gy = OY + goal.y * CS + CS / 2 + Math.sin(c.time * 5) * 2; g.fillStyle = '#1d6b4a'; g.fillRect(gx - 8, gy - 7, 16, 16); g.fillStyle = '#5ef0a8'; g.fillRect(gx - 7, gy - 8, 14, 14); g.fillStyle = '#c8ffe4'; g.fillRect(gx - 5, gy - 6, 4, 4);
+          var px = p.x, py = p.y; if (anim) { var f = Math.min(1, anim.t / anim.dur); px = anim.fx + (anim.tx - anim.fx) * f; py = anim.fy + (anim.ty - anim.fy) * f; }
+          c.hero(g, OX + px * CS + 3, OY + py * CS + 1, CS - 6, ['up', 'left', 'down', 'right'][face], anim ? 1 : 0);
+          c.text(g, 'MOVES ' + moves + '  BEST ' + par, OX, 30, 2, moves <= par ? '#7dff8a' : '#ffe680'); c.text(g, 'SWIPE TO SLIDE', OX, 48, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Pipe Twist: turn the pipes so water reaches the drain ----------
+  R({
+    id: 'pipes', name: 'Pipe Twist', cat: 'puzzle', medals: [300, 1000, 2500], music: 'caves', lives: 0, clock: 90,
+    blurb: 'Tap a pipe to turn it. Join the pipes so the water flows from the tap all the way to the drain.',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) { for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.STONE].top, x, y); g.fillStyle = '#3fa7e0'; g.fillRect(0, 6, 24, 5); g.fillRect(19, 6, 5, 22); g.fillRect(19, 24, 26, 5); g.fillStyle = '#8b8b96'; g.fillRect(40, 24, 5, 20); g.fillRect(40, 39, 24, 5); },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, COLS, ROWS, CS, OX, OY, cells, wet, wait = 0, done = 0, taps = 0;
+      var BIT = [1, 8, 4, 2];      // opening bits for up, left, down, right (N=1, E=2, S=4, W=8)
+      function rot(m) { return ((m << 1) | (m >> 3)) & 15; }
+      function flow() {
+        wet = {}; if (!(cells[0] & 8)) return false; var st = [0]; wet[0] = 1;
+        while (st.length) { var i = st.pop(), x = i % COLS, y = Math.floor(i / COLS); for (var d = 0; d < 4; d++) { if (!(cells[i] & BIT[d])) continue; var nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue; var j = ny * COLS + nx; if (wet[j] || !(cells[j] & BIT[(d + 2) % 4])) continue; wet[j] = 1; st.push(j); } }
+        var last = COLS * ROWS - 1; return !!wet[last] && !!(cells[last] & 2);
+      }
+      function setup() {
+        COLS = c.level > 3 ? 5 : 4; ROWS = c.level > 1 ? 5 : 4; CS = Math.floor(Math.min(300 / COLS, 320 / ROWS)); OX = (W - COLS * CS) / 2; OY = 66;
+        var path = [0], seen = { 0: 1 }, goal = COLS * ROWS - 1;
+        (function walk(i) { if (i === goal) return true; var ds = c.shuffle([0, 1, 2, 3]); for (var k = 0; k < 4; k++) { var x = i % COLS + DX[ds[k]], y = Math.floor(i / COLS) + DY[ds[k]]; if (x < 0 || y < 0 || x >= COLS || y >= ROWS) continue; var j = y * COLS + x; if (seen[j]) continue; seen[j] = 1; path.push(j); if (walk(j)) return true; path.pop(); } return false; })(0);
+        cells = []; for (var n = 0; n < COLS * ROWS; n++) cells.push(c.pick([5, 10, 3, 6, 12, 9, 7]));
+        path.forEach(function (i, k) { var m = 0, pv = k ? path[k - 1] : null, nx = k < path.length - 1 ? path[k + 1] : null; [pv, nx].forEach(function (o) { if (o == null) return; var dx = o % COLS - i % COLS, dy = Math.floor(o / COLS) - Math.floor(i / COLS); m |= dx === 1 ? 2 : dx === -1 ? 8 : dy === 1 ? 4 : 1; }); if (k === 0) m |= 8; if (k === path.length - 1) m |= 2; cells[i] = m; });
+        do { for (var q = 0; q < cells.length; q++) { var r = c.ri(4); while (r--) cells[q] = rot(cells[q]); } } while (flow());
+        taps = 0;
+      }
+      setup();
+      return {
+        tap: function (px, py) {
+          if (wait > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return;
+          cells[y * COLS + x] = rot(cells[y * COLS + x]); taps++; c.fx('click');
+          if (flow()) { done++; c.fx('splash'); solved(c, 200 * c.level + COLS * ROWS * 5, 28, 'IT FLOWS!'); wait = 1.2; }
+        },
+        lines: function () { return [['Pipes joined', done]]; },
+        update: function (dt) { if (wait > 0) { wait -= dt; if (wait <= 0) setup(); } },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); var pw = Math.round(CS * 0.3), hf = CS / 2;
+          g.fillStyle = '#3fa7e0'; g.fillRect(0, OY + hf - pw / 2, OX, pw); g.fillStyle = wet && wet[COLS * ROWS - 1] && (cells[COLS * ROWS - 1] & 2) ? '#3fa7e0' : '#5a5a60'; g.fillRect(OX + COLS * CS, OY + (ROWS - 1) * CS + hf - pw / 2, OX, pw);
+          cells.forEach(function (m, i) {
+            var x = OX + (i % COLS) * CS, y = OY + Math.floor(i / COLS) * CS, cx = x + hf, cy = y + hf; c.block(g, T.STONE, x + 1, y + 1, CS - 2); g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+            [['#2a2a30', 3], [wet && wet[i] ? '#3fa7e0' : '#9a9aa4', 0]].forEach(function (ly) { g.fillStyle = ly[0]; var e = ly[1], t = pw + e * 2; g.fillRect(cx - t / 2, cy - t / 2, t, t); if (m & 1) g.fillRect(cx - t / 2, y, t, hf); if (m & 4) g.fillRect(cx - t / 2, cy, t, hf); if (m & 8) g.fillRect(x, cy - t / 2, hf, t); if (m & 2) g.fillRect(cx, cy - t / 2, hf, t); });
+          });
+          c.text(g, 'TAP', 2, OY - 12, 1, '#7df9ff'); c.text(g, 'DRAIN', W - 32, OY + ROWS * CS + 4, 1, '#7df9ff'); c.text(g, 'TURNS ' + taps, OX, 34, 2, '#ffe680');
+        }
+      };
+    }
+  });
+
+  // ---------- Pixel Picross: fill the squares the numbers describe ----------
+  var PICS = [
+    ['HEART', '0101011111111110111000100'], ['HOUSE', '0010001110111110101001110'], ['TREE', '0010001110111110010000100'], ['ARROW', '0010001110101010010000100'],
+    ['CUP', '1111110001100010111011111'], ['BOAT', '0010000110011101111101110'], ['FISH', '0000001101111110110100000'], ['KEY', '0110010010011000010000110'],
+    ['DIAMOND', '0010001110111110111000100'], ['MUSHROOM', '0111011111111110010001110'], ['LADDER', '1000111111100011111110001'], ['FLAG', '1110011110111001000010000'],
+    ['CROWN', '1010110101111111111100000'], ['SMILE', '0101001010000001000101110'], ['STAIRS', '0000100011001110111111111'],
+    ['PLUS', '0010000100111110010000100'], ['ROCKET', '0010001110011100111010101'], ['DUCK', '0110011100011111111001100'], ['LAMP', '0111001110001000010001110']
+  ];
+  function clues(bits, n, row) { var out = [], run = 0; for (var k = 0; k < 5; k++) { var v = bits[row ? n * 5 + k : k * 5 + n] === '1'; if (v) run++; else if (run) { out.push(run); run = 0; } } if (run) out.push(run); return out.length ? out : [0]; }
+  R({
+    id: 'picross', name: 'Pixel Picross', cat: 'puzzle', medals: [300, 1000, 2500], music: 'forest', lives: 3, clock: 120,
+    blurb: 'The numbers say how many squares to fill in each row and column. Find the hidden picture! X marks an empty square.',
+    controls: { dpad: false, a: null, b: 'X' }, pet: [18, 418],
+    thumb: function (g, w, h) { g.fillStyle = '#fbf7ff'; g.fillRect(14, 4, 40, 40); var b = PICS[0][1]; for (var i = 0; i < 25; i++) { g.fillStyle = b[i] === '1' ? '#d8322b' : '#e2dcec'; g.fillRect(15 + (i % 5) * 8, 5 + Math.floor(i / 5) * 8, 7, 7); } },
+    make: function (c) {
+      var W = c.W, H = c.H, CS = 44, OX = 86, OY = 110, pic, st, xmode = false, wait = 0, done = 0, order = c.shuffle(PICS.slice()), rc, cc, need;
+      function setup() { pic = order[done % order.length]; st = []; for (var i = 0; i < 25; i++) st.push(0); rc = []; cc = []; for (var n = 0; n < 5; n++) { rc.push(clues(pic[1], n, true)); cc.push(clues(pic[1], n, false)); } need = pic[1].split('').filter(function (v) { return v === '1'; }).length; xmode = false; }
+      setup();
+      return {
+        b: function () { xmode = !xmode; c.fx('click'); },
+        tap: function (px, py) {
+          if (wait > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= 5 || y >= 5) return; var i = y * 5 + x;
+          if (xmode) { if (st[i] !== 1) { st[i] = st[i] === 2 ? 0 : 2; c.fx('place'); } return; }
+          if (st[i]) return;
+          if (pic[1][i] === '1') { st[i] = 1; need--; c.add(10 * c.level); c.fx('mined', { tile: c.T.STONE }); if (need <= 0) { done++; solved(c, 250 * c.level, 40, pic[0] + '!'); wait = 1.6; } }
+          else { st[i] = 2; c.hit(px, py); }
+        },
+        lines: function () { return [['Pictures found', done]]; },
+        update: function (dt) { if (wait > 0) { wait -= dt; if (wait <= 0) setup(); } },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); g.fillStyle = '#0c080f'; g.fillRect(OX - 3, OY - 3, CS * 5 + 6, CS * 5 + 6);
+          for (var i = 0; i < 25; i++) { var x = OX + (i % 5) * CS, y = OY + Math.floor(i / 5) * CS; g.fillStyle = st[i] === 1 ? (wait > 0 ? '#f7c936' : '#3fa7e0') : '#fbf7ff'; g.fillRect(x + 2, y + 2, CS - 4, CS - 4); if (st[i] === 1) { g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(x + 2, y + 2, CS - 4, 4); } if (st[i] === 2) c.ctext(g, 'x', x + CS / 2, y + CS / 2 - 12, 3, '#b9adc6'); }
+          for (var n = 0; n < 5; n++) {
+            var r = rc[n].join(' '); c.text(g, r, OX - 8 - PCTex.textWidth(r, 2), OY + n * CS + 15, 2, '#ffe680');
+            cc[n].forEach(function (v, k) { c.ctext(g, v, OX + n * CS + CS / 2, OY - 18 - (cc[n].length - 1 - k) * 18, 2, '#ffe680'); });
+          }
+          c.text(g, xmode ? 'MARKING X' : 'FILLING', 8, 28, 2, xmode ? '#ff7a6a' : '#7dff8a'); c.text(g, 'PICTURE ' + (done + 1), 8, 46, 1, '#fff');
+        }
+      };
+    }
+  });
+  PCMini.PICS = PICS; PCMini.clues = clues;
+})();
+
+
+/* Blockcade v4.0 — brain pack: Four in a Row, Flip Stones, Word Miner, Math Mine. */
+(function () {
+  'use strict';
+  var R = PCMini.reg;
+
+  // ---------- Four in a Row: you (gold) against Rumble (magma) ----------
+  R({
+    id: 'connect4', name: 'Four in a Row', cat: 'brain', medals: [300, 1200, 3000], music: 'meadow',
+    blurb: 'Drop gold blocks into the grid. Get four in a row — across, down or diagonal — before Rumble does.',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#2a3d7a'; g.fillRect(4, 4, 56, 40); var b = '000000000100002100012210112122';
+      for (var i = 0; i < 30; i++) { var x = 7 + (i % 6) * 9, y = 6 + Math.floor(i / 6) * 7.5; if (b[i] === '0') { g.fillStyle = '#16213f'; g.fillRect(x, y, 7, 6); } else if (b[i] === '1') { g.fillStyle = '#f7c936'; g.fillRect(x, y, 7, 6); } else g.drawImage(tex.blocks[T.MAGMA].top, 0, 0, 16, 16, x, y, 7, 6); }
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, COLS = 7, ROWS = 6, CS = 42, OX = 13, OY = 110, bd, turn, drop = null, think = 0, wait = 0, winCells = null, wins = 0, hover = 3;
+      function setup() { bd = []; for (var i = 0; i < COLS * ROWS; i++) bd.push(0); turn = 1; drop = null; winCells = null; }
+      function piece(g, who, x, y, s) { if (who === 1) c.gold(g, x, y, s); else c.block(g, T.MAGMA, x, y, s); }
+      function rowFor(b, col) { for (var r = ROWS - 1; r >= 0; r--) if (!b[r * COLS + col]) return r; return -1; }
+      function winAt(b, who) {
+        var D = [[1, 0], [0, 1], [1, 1], [1, -1]];
+        for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) for (var d = 0; d < 4; d++) {
+          var cells = [];
+          for (var k = 0; k < 4; k++) { var nx = x + D[d][0] * k, ny = y + D[d][1] * k; if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS || b[ny * COLS + nx] !== who) break; cells.push(ny * COLS + nx); }
+          if (cells.length === 4) return cells;
+        }
+        return null;
+      }
+      function tryMove(b, col, who) { var r = rowFor(b, col); if (r < 0) return null; var nb = b.slice(); nb[r * COLS + col] = who; return nb; }
+      function cpuPick() {
+        var ok = []; for (var col = 0; col < COLS; col++) if (rowFor(bd, col) >= 0) ok.push(col);
+        var i, nb;
+        for (i = 0; i < ok.length; i++) { nb = tryMove(bd, ok[i], 2); if (winAt(nb, 2)) return ok[i]; }
+        if (c.level > 1 || Math.random() < 0.6) for (i = 0; i < ok.length; i++) { nb = tryMove(bd, ok[i], 1); if (winAt(nb, 1)) return ok[i]; }
+        var safe = ok;
+        if (c.level > 2) { safe = ok.filter(function (col) { var b2 = tryMove(bd, col, 2); for (var k = 0; k < COLS; k++) { var b3 = tryMove(b2, k, 1); if (b3 && winAt(b3, 1)) return false; } return true; }); if (!safe.length) safe = ok; }
+        safe.sort(function (a, b) { return Math.abs(a - 3) - Math.abs(b - 3) + c.rnd(-1.6, 1.6); }); return safe[0];
+      }
+      function place(col, who) { var r = rowFor(bd, col); if (r < 0) return false; drop = { col: col, row: r, who: who, y: -1 }; return true; }
+      function landed() {
+        bd[drop.row * COLS + drop.col] = drop.who; c.fx('place'); var who = drop.who; drop = null; var wc = winAt(bd, who);
+        if (wc) { winCells = wc; wait = 1.6; if (who === 1) { wins++; c.add(300 * c.level, W / 2, 90, '#ffe680'); c.fx('clear'); c.say('FOUR IN A ROW!', null, 1.3); c.levelUp(true); if (wins % 2 === 1) c.ore(null, W / 2, 70); } else { c.say('RUMBLE WINS', null, 1.3); c.hit(W / 2, 90); } return; }
+        if (bd.every(function (v) { return v; })) { c.say('A DRAW!', null, 1.2); c.add(50); wait = 1.4; return; }
+        turn = who === 1 ? 2 : 1; if (turn === 2) think = 0.55;
+      }
+      setup();
+      return {
+        tap: function (px) { if (turn !== 1 || drop || wait > 0) return; var col = c.clamp(Math.floor((px - OX) / CS), 0, COLS - 1); hover = col; if (!place(col, 1)) c.fx('nope'); },
+        drag: function (px) { hover = c.clamp(Math.floor((px - OX) / CS), 0, COLS - 1); },
+        lines: function () { return [['Games won', wins]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0 && !c.done) setup(); return; }
+          if (drop) { drop.y += dt * 16; if (drop.y >= drop.row) landed(); return; }
+          if (turn === 2) { think -= dt; if (think <= 0) place(cpuPick(), 2); }
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          if (turn === 1 && !drop && wait <= 0) { g.globalAlpha = 0.6; piece(g, 1, OX + hover * CS + 5, OY - 44, CS - 10); g.globalAlpha = 1; }
+          g.fillStyle = '#2a3d7a'; g.fillRect(OX - 5, OY - 5, COLS * CS + 10, ROWS * CS + 10);
+          for (var i = 0; i < bd.length; i++) {
+            var x = OX + (i % COLS) * CS, y = OY + Math.floor(i / COLS) * CS; g.fillStyle = '#131a33'; g.fillRect(x + 3, y + 3, CS - 6, CS - 6);
+            if (bd[i]) { piece(g, bd[i], x + 4, y + 4, CS - 8); if (winCells && winCells.indexOf(i) >= 0 && Math.floor(c.time * 6) % 2) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(x + 3, y + 3, CS - 6, CS - 6); } }
+          }
+          if (drop) piece(g, drop.who, OX + drop.col * CS + 4, OY + Math.min(drop.y, drop.row) * CS + 4, CS - 8);
+          c.mon(g, 'rumble', W - 46, 30, 30, 1); c.block(g, T.MAGMA, W - 70, 38, 16); c.hero(g, 12, 30, 30, 'right', 0); piece(g, 1, 46, 38, 16);
+          c.ctext(g, turn === 1 ? 'YOUR TURN' : 'RUMBLE THINKS...', W / 2, 40, 1, turn === 1 ? '#7dff8a' : '#ff9a5a');
+        }
+      };
+    }
+  });
+
+  // ---------- Flip Stones: trap Rumble's blocks between yours to flip them ----------
+  R({
+    id: 'reversi', name: 'Flip Stones', cat: 'brain', medals: [300, 1200, 3000], music: 'forest',
+    blurb: 'Place a diamond so Rumble\'s magma blocks are trapped in a line between two of yours — they all flip!',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#1f5a2e'; g.fillRect(8, 0, 48, 48); var b = '000000001200012210021120002100000000';
+      for (var i = 0; i < 36; i++) { var x = 8 + (i % 6) * 8, y = Math.floor(i / 6) * 8; g.strokeStyle = '#123'; g.strokeRect(x + 0.5, y + 0.5, 8, 8); if (b[i] !== '0') g.drawImage(tex.blocks[b[i] === '1' ? T.DIAMOND : T.MAGMA].top, 0, 0, 16, 16, x + 1, y + 1, 6, 6); }
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, N = 6, CS = 48, OX = 16, OY = 76, bd, turn, think = 0, wait = 0, wins = 0, last = -1;
+      var D8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]], WT = [9, 1, 4, 4, 1, 9, 1, 0, 2, 2, 0, 1, 4, 2, 3, 3, 2, 4, 4, 2, 3, 3, 2, 4, 1, 0, 2, 2, 0, 1, 9, 1, 4, 4, 1, 9];
+      function setup() { bd = []; for (var i = 0; i < N * N; i++) bd.push(0); bd[14] = bd[21] = 2; bd[15] = bd[20] = 1; turn = 1; last = -1; }
+      function flips(b, i, who) {
+        if (b[i]) return []; var x = i % N, y = Math.floor(i / N), out = [];
+        D8.forEach(function (d) { var line = [], nx = x + d[0], ny = y + d[1]; while (nx >= 0 && ny >= 0 && nx < N && ny < N && b[ny * N + nx] === 3 - who) { line.push(ny * N + nx); nx += d[0]; ny += d[1]; } if (line.length && nx >= 0 && ny >= 0 && nx < N && ny < N && b[ny * N + nx] === who) out = out.concat(line); });
+        return out;
+      }
+      function moves(who) { var m = []; for (var i = 0; i < N * N; i++) { var f = flips(bd, i, who); if (f.length) m.push({ i: i, f: f }); } return m; }
+      function count(who) { return bd.filter(function (v) { return v === who; }).length; }
+      function play(i, who) { var f = flips(bd, i, who); if (!f.length) return false; bd[i] = who; f.forEach(function (j) { bd[j] = who; }); last = i; c.fx('place'); c.K.burst(OX + (i % N) * CS + CS / 2, OY + Math.floor(i / N) * CS + CS / 2, who === 1 ? '#7df9ff' : '#ff8a1f', 6, 90); return true; }
+      function nextTurn(who) {
+        var other = 3 - who;
+        if (moves(other).length) { turn = other; if (turn === 2) think = 0.7; return; }
+        if (moves(who).length) { c.say(other === 1 ? 'NO MOVE - RUMBLE AGAIN' : 'RUMBLE IS STUCK!', null, 1); turn = who; if (turn === 2) think = 1.1; return; }
+        var me = count(1), ru = count(2); turn = 0; wait = 2;
+        if (me > ru) { wins++; c.add(400 * c.level + (me - ru) * 10, W / 2, 60, '#ffe680'); c.fx('clear'); c.say('YOU WIN ' + me + '-' + ru, null, 1.8); c.levelUp(true); c.ore(null, W / 2, 40); }
+        else if (me === ru) { c.say('A DRAW!', null, 1.8); c.add(100); }
+        else { c.say('RUMBLE WINS ' + ru + '-' + me, null, 1.8); c.hit(W / 2, 60); }
+      }
+      setup();
+      return {
+        tap: function (px, py) { if (turn !== 1 || wait > 0) return; var x = Math.floor((px - OX) / CS), y = Math.floor((py - OY) / CS); if (x < 0 || y < 0 || x >= N || y >= N) return; if (!play(y * N + x, 1)) { c.fx('nope'); return; } nextTurn(1); },
+        lines: function () { return [['Games won', wins]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0 && !c.done) setup(); return; }
+          if (turn !== 2) return; think -= dt; if (think > 0) return;
+          var m = moves(2); if (!m.length) { nextTurn(2); return; }
+          var smart = Math.min(1, 0.35 + c.level * 0.2);
+          m.forEach(function (o) { o.s = o.f.length + (Math.random() < smart ? WT[o.i] * 2 : 0) + Math.random() * 2; }); m.sort(function (a, b) { return b.s - a.s; });
+          play(m[0].i, 2); nextTurn(2);
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); g.fillStyle = '#0c080f'; g.fillRect(OX - 4, OY - 4, N * CS + 8, N * CS + 8);
+          var hint = turn === 1 ? moves(1) : [];
+          for (var i = 0; i < N * N; i++) {
+            var x = OX + (i % N) * CS, y = OY + Math.floor(i / N) * CS; g.fillStyle = (i % N + Math.floor(i / N)) % 2 ? '#1f5a2e' : '#256b36'; g.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+            if (bd[i]) { c.block(g, bd[i] === 1 ? T.DIAMOND : T.MAGMA, x + 6, y + 6, CS - 12); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 6, y + CS - 10, CS - 12, 4); if (i === last) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.strokeRect(x + 5, y + 5, CS - 10, CS - 10); } }
+          }
+          g.fillStyle = 'rgba(255,255,255,0.35)'; hint.forEach(function (m) { g.fillRect(OX + (m.i % N) * CS + CS / 2 - 4, OY + Math.floor(m.i / N) * CS + CS / 2 - 4, 8, 8); });
+          c.block(g, T.DIAMOND, 16, 30, 20); c.text(g, 'YOU ' + count(1), 42, 34, 2, '#7df9ff'); c.block(g, T.MAGMA, 170, 30, 20); c.text(g, 'RUMBLE ' + count(2), 196, 34, 2, '#ff9a5a');
+          c.ctext(g, turn === 1 ? 'YOUR TURN - TAP A DOT' : turn === 2 ? 'RUMBLE THINKS...' : '', W / 2, 58, 1, '#fff');
+        }
+      };
+    }
+  });
+
+  // ---------- Word Miner: guess the hidden word a letter at a time ----------
+  var WORDS = [
+    'CAVE', 'GOLD', 'IRON', 'COAL', 'ROCK', 'WOLF', 'BLOCK', 'STONE', 'MINER', 'EMBER', 'SLIME', 'TORCH', 'CHEST', 'SWORD', 'ARROW', 'CRAFT', 'LADDER', 'TUNNEL', 'PORTAL', 'ARCADE',
+    'DIAMOND', 'CRYSTAL', 'PICKAXE', 'MONSTER', 'MINECART', 'TREASURE', 'EMERALD', 'CHEETAH', 'VOLCANO', 'COMPASS', 'LANTERN', 'BOULDER', 'CAVERN', 'DRAGON', 'ROCKET', 'METEOR', 'PUZZLE', 'JOYSTICK',
+    'ADVENTURE', 'LABYRINTH', 'EXPLOSION', 'BLUEPRINT', 'STALACTITE', 'GEMSTONE', 'HIGHSCORE', 'AVALANCHE', 'TELESCOPE', 'MYSTERY', 'SAPPHIRE', 'OBSIDIAN', 'QUARTZ', 'WIZARD', 'KNIGHT', 'CASTLE', 'BRIDGE', 'ISLAND', 'JUNGLE', 'PIRATE', 'SHIELD', 'HAMMER'
+  ];
+  R({
+    id: 'wordminer', name: 'Word Miner', cat: 'brain', medals: [300, 1000, 2500], music: 'caves',
+    blurb: 'A secret word is buried in the rock. Guess its letters! Six wrong guesses and the tunnel caves in.',
+    pet: [18, 196],
+    thumb: function (g, w, h, tex, T) {
+      for (var x = 0; x < w; x += 16) g.drawImage(tex.blocks[T.STONE].top, x, 0); g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, w, 16);
+      'G?LD'.split('').forEach(function (ch, i) { g.fillStyle = '#fbf7ff'; g.fillRect(6 + i * 14, 20, 12, 14); PCTex.drawText(g, ch, 9 + i * 14, 24, 1, ch === '?' ? '#b9adc6' : '#1b1822'); }); g.drawImage(tex.picks[2], 24, 0, 14, 14);
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, word, shown, used, wrong, wait = 0, solvedN = 0, pool = [], KX = 9, KY = 222, KW = 43, KH = 38, ROWS = ['ABCDEFG', 'HIJKLMN', 'OPQRSTU', 'VWXYZ'];
+      function setup() {
+        var lo = c.level < 3 ? 4 : c.level < 5 ? 5 : 6, hi = c.level < 2 ? 5 : c.level < 4 ? 7 : 10;
+        pool = WORDS.filter(function (w2) { return w2.length >= lo && w2.length <= hi; }); word = c.pick(pool); shown = word.split('').map(function () { return false; }); used = {}; wrong = 0;
+      }
+      function guess(ch) {
+        if (wait > 0 || used[ch]) return; used[ch] = 1; var hit = false;
+        word.split('').forEach(function (l, i) { if (l === ch) { shown[i] = true; hit = true; } });
+        if (hit) { c.fx('mined', { tile: T.STONE }); c.add(10 * c.level); if (shown.every(function (v) { return v; })) { solvedN++; c.add((100 + (6 - wrong) * 25) * c.level, W / 2, 110, '#ffe680'); c.fx('clear'); c.say('YOU GOT IT!', null, 1.1); if (solvedN % 3 === 0) { c.levelUp(true); c.ore(null, W / 2, 80); } wait = 1.4; } }
+        else { wrong++; used[ch] = 2; c.fx('crumble'); c.shake = 0.15; if (wrong >= 6) { shown = shown.map(function () { return true; }); c.say('CAVE IN!', 'IT WAS ' + word, 1.6); if (!c.hit(W / 2, 100)) wait = 1.8; } }
+      }
+      setup();
+      return {
+        tap: function (px, py) { var r = Math.floor((py - KY) / KH), k = Math.floor((px - KX - (r === 3 ? KW : 0)) / KW); if (r < 0 || r > 3 || k < 0 || k >= ROWS[r].length) return; guess(ROWS[r][k]); },
+        lines: function () { return [['Words found', solvedN]]; },
+        update: function (dt) { if (wait > 0) { wait -= dt; if (wait <= 0 && !c.done) setup(); } },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H); c.fill(g, T.STONE, 0, 22, W, 176, 16); g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 22, W, 176);
+          for (var i = 0; i < 6; i++) { var bx = 40 + i * 42; if (i < wrong) { c.block(g, T.COBBLE, bx, 34, 34); g.drawImage(c.tex.cracks[3], 0, 0, 16, 16, bx, 34, 34, 34); } else { g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(bx, 34, 34, 34); } }
+          c.ctext(g, (6 - wrong) + ' MISSES LEFT', W / 2, 76, 1, wrong >= 4 ? '#ff7a6a' : '#fff');
+          var n = word.length, lw = Math.min(30, Math.floor((W - 16) / n)), ox = (W - n * lw) / 2, sc = lw >= 26 ? 3 : 2;
+          word.split('').forEach(function (l, k) { var x = ox + k * lw; g.fillStyle = shown[k] ? '#fbf7ff' : '#3a3140'; g.fillRect(x + 1, 110, lw - 2, 40); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 1, 146, lw - 2, 4); if (shown[k]) PCTex.drawText(g, l, Math.round(x + lw / 2 - PCTex.textWidth(l, sc) / 2), sc === 3 ? 119 : 123, sc, '#1b1822'); });
+          c.ctext(g, 'WORD ' + (solvedN + 1), W / 2, 166, 1, '#ffe680');
+          ROWS.forEach(function (row, r) { row.split('').forEach(function (ch, k) { var x = KX + k * KW + (r === 3 ? KW : 0), y = KY + r * KH, u = used[ch]; g.fillStyle = '#0c080f'; g.fillRect(x + 1, y + 1, KW - 2, KH - 2); g.fillStyle = u === 1 ? '#2f6b1f' : u === 2 ? '#3a2226' : '#85858a'; g.fillRect(x + 3, y + 3, KW - 6, KH - 6); if (!u) { g.fillStyle = '#b3b3b8'; g.fillRect(x + 3, y + 3, KW - 6, 3); } c.ctext(g, ch, x + KW / 2, y + 11, 2, u ? '#8a8494' : '#fff'); }); });
+        }
+      };
+    }
+  });
+
+  // ---------- Math Mine: tap the right answer to break the block ----------
+  R({
+    id: 'mathmine', name: 'Math Mine', cat: 'brain', medals: [300, 1200, 3500], music: 'desert',
+    blurb: 'Each block has a sum on it. Tap the right answer before the fuse burns down to mine it!',
+    pet: [18, 418],
+    thumb: function (g, w, h, tex, T) {
+      g.fillStyle = '#241c2c'; g.fillRect(0, 0, w, h); g.drawImage(tex.blocks[T.GOLD].top, 0, 0, 16, 16, 14, 2, 36, 22); PCTex.drawText(g, '7+5', 23, 9, 1, '#fff', '#000');
+      ['11', '12', '13', '10'].forEach(function (s, i) { g.fillStyle = i === 1 ? '#479a2c' : '#85858a'; g.fillRect(3 + i * 15, 30, 13, 13); PCTex.drawText(g, s, 4 + i * 15, 33, 1, '#fff', '#000'); });
+    },
+    make: function (c) {
+      var W = c.W, H = c.H, T = c.T, q, t, tmax, right = 0, streak = 0, wait = 0, picked = -1, BX = 20, BY = 232, BW = 136, BH = 78;
+      var SKIN = [T.STONE, T.COAL, T.IRON, T.GOLD, T.DIAMOND, T.EMBER];
+      function make() {
+        var L = c.level, a, b, ans, txt, kind = L < 2 ? 0 : L < 3 ? c.ri(2) : L < 5 ? c.ri(3) : c.ri(4);
+        if (kind === 0) { a = 1 + c.ri(L < 2 ? 9 : 20 + L * 4); b = 1 + c.ri(L < 2 ? 9 : 15 + L * 3); ans = a + b; txt = a + ' + ' + b; }
+        else if (kind === 1) { a = 4 + c.ri(12 + L * 5); b = 1 + c.ri(a - 1); ans = a - b; txt = a + ' - ' + b; }
+        else if (kind === 2) { a = 2 + c.ri(L < 5 ? 4 : 9); b = 2 + c.ri(L < 6 ? 9 : 11); ans = a * b; txt = a + ' x ' + b; }
+        else { b = 2 + c.ri(8); ans = 2 + c.ri(9); a = b * ans; txt = a + ' / ' + b; }
+        var opts = [ans]; while (opts.length < 4) { var o = ans + c.pick([-10, -3, -2, -1, 1, 2, 3, 10]); if (o >= 0 && opts.indexOf(o) < 0) opts.push(o); }
+        q = { txt: txt, ans: ans, opts: c.shuffle(opts) }; tmax = t = Math.max(3.2, 8 - L * 0.5); picked = -1;
+      }
+      function answer(i) {
+        if (wait > 0) return; picked = i; wait = 0.55;
+        if (q.opts[i] === q.ans) { right++; streak++; c.add(Math.round((10 + t / tmax * 20) * c.level) + Math.min(50, streak * 2), W / 2, 150, '#ffe680'); c.fx('mined', { tile: T.STONE, drop: 1 }); c.K.burst(W / 2, 120, '#c9ccd4', 12, 170); if (right % 8 === 0) { c.levelUp(); c.ore(null, W / 2, 80); } }
+        else { streak = 0; c.hit(W / 2, 120); }
+      }
+      make();
+      return {
+        tap: function (px, py) { for (var i = 0; i < 4; i++) { var x = BX + (i % 2) * (BW + 8), y = BY + Math.floor(i / 2) * (BH + 8); if (px >= x && px < x + BW && py >= y && py < y + BH) answer(i); } },
+        lines: function () { return [['Right answers', right]]; },
+        update: function (dt) {
+          if (wait > 0) { wait -= dt; if (wait <= 0 && !c.done) make(); return; }
+          t -= dt; if (t <= 0) { streak = 0; picked = -2; wait = 0.7; c.fx('boom'); c.hit(W / 2, 120); }
+        },
+        draw: function (g) {
+          g.fillStyle = '#1b1822'; g.fillRect(0, 0, W, H);
+          var hitOk = wait > 0 && picked >= 0 && q.opts[picked] === q.ans;
+          if (!hitOk) { c.block(g, SKIN[Math.min(5, c.level - 1)], 40, 60, 240, 120); g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(40, 60, 240, 120); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(40, 60, 240, 5); c.ctext(g, q.txt, W / 2, 100, q.txt.length > 7 ? 4 : 5, '#fff'); }
+          g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(40, 192, 240, 10); g.fillStyle = t / tmax < 0.3 ? '#ff7a6a' : '#ffd23b'; g.fillRect(40, 192, 240 * Math.max(0, t / tmax), 10);
+          q.opts.forEach(function (o, i) {
+            var x = BX + (i % 2) * (BW + 8), y = BY + Math.floor(i / 2) * (BH + 8), col = '#85858a';
+            if (wait > 0) { if (o === q.ans) col = '#479a2c'; else if (i === picked) col = '#b3322a'; }
+            g.fillStyle = '#0c080f'; g.fillRect(x, y, BW, BH); g.fillStyle = col; g.fillRect(x + 3, y + 3, BW - 6, BH - 6); g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x + 3, y + 3, BW - 6, 4); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 3, y + BH - 8, BW - 6, 5);
+            c.ctext(g, o, x + BW / 2, y + BH / 2 - 14, 4, '#fff');
+          });
+          if (streak >= 3) c.ctext(g, streak + ' IN A ROW', W / 2, 34, 2, '#ffe680');
+        }
+      };
+    }
+  });
+})();
+
+
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '3.0.0';
+  var VERSION = '4.0.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -7327,10 +9108,32 @@ PCCab.register((function () {
     ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
     $('hub-bank').innerHTML = bank;
     var box = $('cabinets'); box.innerHTML = '';
-    var all = CABINETS.concat(PCCab.list().map(function (d) {
-      return { id: d.id, cls: d.id, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
+    var all = CABINETS.map(function (c) { c.cat = 'classic'; return c; }).concat(PCCab.list().map(function (d) {
+      return { id: d.id, cls: d.id, cat: d.cat || 'classic', isNew: !!d.isNew, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
     }));
-    all.push({ id: 'mystery', cls: 'mystery', name: 'Mystery Box', blurb: 'A surprise game — and it pays DOUBLE XP!', start: function () { PCQuest.mystery(); }, best: null,
+    function makeCard(c) {
+      var card = document.createElement('button'); card.className = 'cab-card ' + c.cls + (c.cat ? ' cat-' + c.cat : '');
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
+      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
+      try { c.thumb(g, 64, 48, tex, save.look); } catch (e) { if (window.console) console.error('thumb ' + c.id, e); }
+      card.appendChild(cv);
+      var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
+      var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
+      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = c.best ? 'BEST ' + c.best() : c.tag; card.appendChild(best);
+      if (c.cat) PCQuest.decorate(card, c.id, c.isNew);
+      card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
+      return card;
+    }
+    // the two specials sit above the tabs: Arcade Marathon and the Mystery Box
+    var sp = $('hub-specials'); sp.innerHTML = '';
+    sp.appendChild(makeCard({ id: 'marathon', cls: 'marathon', name: 'Arcade Marathon', blurb: '5 random games in a row, 60 seconds each. Rack up points!', tag: 'BEST ' + PCQuest.marBest() + ' / 500', start: function () { PCQuest.marathonStart(); },
+      thumb: function (g, w, h) {
+        g.fillStyle = '#16122a'; g.fillRect(0, 0, w, h);
+        for (var y = 0; y < 3; y++) for (var x = 0; x < 16; x++) { g.fillStyle = (x + y) % 2 ? '#fbf7ff' : '#1b1822'; g.fillRect(x * 4, y * 4, 4, 4); }
+        [TILE.GRASS, TILE.GOLD, TILE.DIAMOND, TILE.MAGMA, TILE.CRYSTAL].forEach(function (t, i) { g.drawImage(tex.blocks[t].top, 0, 0, 16, 16, 3 + i * 12, 18 + (i % 2) * 4, 10, 10); });
+        PCTex.drawText(g, '5 GAMES', 11, 37, 1, '#ffe680', '#000');
+      } }));
+    sp.appendChild(makeCard({ id: 'mystery', cls: 'mystery', name: 'Mystery Box', blurb: 'A surprise game — and it pays DOUBLE XP!', tag: '2× XP', start: function () { PCQuest.mystery(); },
       thumb: function (g, w, h) {
         var d = tex.blocks[TILE.STONE].top;
         for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(d, x, y, 16, 16);
@@ -7341,20 +9144,18 @@ PCCab.register((function () {
         g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(16, 36, 32, 4); g.fillRect(44, 8, 4, 32);
         g.fillStyle = '#8a5ad6'; g.fillRect(16, 21, 32, 6); g.fillStyle = '#b48cf0'; g.fillRect(16, 21, 32, 2);
         PCTex.drawText(g, '?', 32 - Math.round(PCTex.textWidth('?', 3) / 2), 14, 3, '#ffe680', '#000');
-      } });
-    all.forEach(function (c) {
-      var card = document.createElement('button'); card.className = 'cab-card ' + c.cls;
-      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
-      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
-      try { c.thumb(g, 64, 48, tex, save.look); } catch (e) { }
-      card.appendChild(cv);
-      var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
-      var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
-      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = c.best ? 'BEST ' + c.best() : '2× XP'; card.appendChild(best);
-      PCQuest.decorate(card, c.id);
-      card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
-      box.appendChild(card);
+      } }));
+    // tabs: the 48 cabinets sorted onto floors
+    var TABS = [['all', 'All'], ['classic', 'Classics'], ['action', 'Action'], ['skill', 'Skill'], ['puzzle', 'Puzzle'], ['brain', 'Brain']];
+    var tab = save.settings.hubTab || 'all'; if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'all';
+    var tb = $('hub-tabs'); tb.innerHTML = '';
+    TABS.forEach(function (t) {
+      var n = all.filter(function (c) { return t[0] === 'all' || c.cat === t[0]; }).length;
+      var b = document.createElement('button'); b.className = 'hub-tab' + (t[0] === tab ? ' active' : ''); b.innerHTML = t[1] + ' <small>' + n + '</small>';
+      b.addEventListener('click', function () { A.play('click'); save.settings.hubTab = t[0]; persist(); var st = document.querySelector('.hub-wrap').scrollTop; enterHub(); document.querySelector('.hub-wrap').scrollTop = st; });
+      tb.appendChild(b);
     });
+    all.filter(function (c) { return tab === 'all' || c.cat === tab; }).forEach(function (c) { box.appendChild(makeCard(c)); });
     var hi = document.querySelector('#hub-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
     hubPet = PCPet.make(save.look, function (n) { A.play(n); });
     if (!hubPetRaf) { hubPetLast = performance.now(); hubPetRaf = requestAnimationFrame(hubPetLoop); }
@@ -8075,7 +9876,7 @@ PCCab.register((function () {
   var PETS = [
     { id: 'none', name: 'No pet' },
     { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' },
-    { id: 'fox', name: 'Fox', lvl: 3 }, { id: 'panda', name: 'Panda Pup', lvl: 7 }, { id: 'ember', name: 'Ember Hound', lvl: 12 }, { id: 'crystal', name: 'Crystal Wolf', lvl: 18 }
+    { id: 'fox', name: 'Fox', lvl: 3 }, { id: 'panda', name: 'Panda Pup', lvl: 7 }, { id: 'ember', name: 'Ember Hound', lvl: 12 }, { id: 'crystal', name: 'Crystal Wolf', lvl: 18 }, { id: 'golden', name: 'Golden Pup', lvl: 25 }, { id: 'shadow', name: 'Shadow Wolf', lvl: 35 }
   ];
   var heroT = 0;
   function renderHero() {
@@ -8296,7 +10097,9 @@ PCCab.register((function () {
   buildIcons();
   applySettings();
   drawLogo();
-  function allGames() { return [{ id: 'paccraft', name: 'PacCraft' }].concat(PCCab.list().map(function (d) { return { id: d.id, name: d.name }; })); }
+  // marathon-friendly = quick to get going: the action and skill cabinets plus the reflex classics
+  var MAR_CLASSIC = { dash: 1, breaker: 1, invaders: 1, crossing: 1, snake: 1, caveworm: 1, skyguard: 1, meteor: 1, minecart: 1, bonk: 1, digger: 1, tower: 1 };
+  function allGames() { return [{ id: 'paccraft', name: 'PacCraft' }].concat(PCCab.list().map(function (d) { return { id: d.id, name: d.name, mar: d.cat === 'action' || d.cat === 'skill' || !!MAR_CLASSIC[d.id] }; })); }
   PCQuest.init({
     save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img, modal: modal,
     show: function (id) { show(id); }, games: allGames,
@@ -8304,6 +10107,7 @@ PCCab.register((function () {
   });
   PCCab.setApi({
     quest: function (r) { var out = PCQuest.report(r); out.html = PCQuest.resultHTML(out); return out; },
+    marathonFor: function (id) { return PCQuest.marathonFor(id); }, marathonNext: function () { return PCQuest.marathonNext(); },
     celebrate: function (out) { PCQuest.celebrate(out); },
     save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img,
     show: function (id) { show(id); }, back: function () { show('hub', true); },
