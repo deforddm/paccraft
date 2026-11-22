@@ -406,3 +406,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .mr-next { grid-area: next; font-size: 12px; font-weight: 700; color: var(--muted); }
 .mr-best { grid-area: best; font-size: 11px; font-weight: 900; color: var(--gold); text-align: right; }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } .lvup-num, .cab-ribbon, .lvcard { animation: none; } .xpbar i { transition: none; } }
+
+/* ---------- v4.0: 48 cabinets — specials row, floor tabs, marathon ---------- */
+.hub-tabs { width: 100%; display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; flex: none; }
+.hub-tabs::-webkit-scrollbar { display: none; }
+.hub-tab { flex: none; font-family: var(--head); font-size: 13px; color: var(--muted); background: #2a2230; border: 3px solid var(--line); border-radius: 6px; padding: 7px 10px; text-shadow: 1px 1px 0 #000; }
+.hub-tab small { font-family: var(--body); font-weight: 900; font-size: 11px; color: var(--muted); opacity: 0.8; }
+.hub-tab.active { color: #3a2a04; text-shadow: none; background: linear-gradient(#fbd54c, #e0b020); box-shadow: inset 2px 2px 0 #fff0a0, inset -2px -3px 0 #9c7410; }
+.hub-tab.active small { color: #3a2a04; }
+.cab-card.marathon { border-color: #ff8a1f; } .cab-card.marathon .cab-best { color: #ff8a1f; }
+.cab-card.cat-action { border-color: #ff7a6a; } .cab-card.cat-skill { border-color: #7df9ff; } .cab-card.cat-puzzle { border-color: #e36bff; } .cab-card.cat-brain { border-color: #7dff8a; }
+.cab-ribbon.new { background: #7dff8a; animation: none; }
+.xpbox.marbox { border-color: #ff8a1f; }
+.marbox .ores { display: flex; gap: 10px; justify-content: center; font-weight: 900; }
+.marbox .ores span { display: inline-flex; align-items: center; gap: 3px; } .marbox .ores img { width: 18px; height: 18px; image-rendering: pixelated; }

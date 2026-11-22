@@ -334,7 +334,9 @@ var PCTex = (function () {
     fox: ['#e8862e', '#b85f1c', '#fff1dc', '#2b2b36'],
     panda: ['#f4f4f6', '#2b2b36', '#ffffff', '#15151c'],
     ember: ['#4a3238', '#2c1c22', '#ff8a1f', '#ffd23b'],
-    crystal: ['#8fe3f2', '#4fb2cf', '#e9fbff', '#1b3a5c']
+    crystal: ['#8fe3f2', '#4fb2cf', '#e9fbff', '#1b3a5c'],
+    golden: ['#f7c936', '#c4901a', '#fff3a8', '#5a3a08'],
+    shadow: ['#3a3450', '#221d33', '#8a5ad6', '#e36bff']
   };
   function wolfSprite(view, frame, collar, kind) {
     var c = mk(16, 16), P = painter(c);

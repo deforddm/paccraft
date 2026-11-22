@@ -7,6 +7,8 @@ var PCQuest = (function () {
   'use strict';
   var api = null;          // filled by app.js: { save, persist, A, ICON, img, toast, modal, show, games, startGame }
   var bonus = null;        // game id that pays double XP on its next finished run (Mystery Box)
+  var mar = null;          // Arcade Marathon in progress: { list: [{id, name}], i, pts: [], total }
+  var MAR_N = 5, MAR_SECS = 60;
   var ORES = ['coal', 'iron', 'gold', 'diamond', 'ember'];
   var MAX_LEVEL = 99;
 
@@ -19,13 +21,15 @@ var PCQuest = (function () {
   };
   var TIER = ['', 'Bronze', 'Silver', 'Gold'], TIER_XP = [0, 30, 60, 120];
   var RANKS = [[1, 'Dirt Digger'], [5, 'Stone Scout'], [10, 'Iron Miner'], [15, 'Gold Hunter'], [20, 'Diamond Ace'], [30, 'Emberite Legend']];
-  var PET_NAMES = { wolf: 'Wolf', fox: 'Fox', panda: 'Panda Pup', ember: 'Ember Hound', crystal: 'Crystal Wolf' };
+  var PET_NAMES = { wolf: 'Wolf', fox: 'Fox', panda: 'Panda Pup', ember: 'Ember Hound', crystal: 'Crystal Wolf', golden: 'Golden Pup', shadow: 'Shadow Wolf' };
   var UNLOCKS = [
     { lvl: 3, pet: 'fox', text: 'New pet: the Fox!' },
     { lvl: 7, pet: 'panda', text: 'New pet: the Panda Pup!' },
     { lvl: 10, sign: true, text: 'The BLOCKCADE sign turns to solid gold!' },
     { lvl: 12, pet: 'ember', text: 'New pet: the Ember Hound!' },
-    { lvl: 18, pet: 'crystal', text: 'New pet: the Crystal Wolf!' }
+    { lvl: 18, pet: 'crystal', text: 'New pet: the Crystal Wolf!' },
+    { lvl: 25, pet: 'golden', text: 'New pet: the Golden Pup!' },
+    { lvl: 35, pet: 'shadow', text: 'New pet: the Shadow Wolf!' }
   ];
 
   // ---------- pure rules ----------
@@ -125,6 +129,17 @@ var PCQuest = (function () {
     if (r.final && bonus && bonus === r.game) add('Mystery Box ×2', base + time, 'gold');
     if (r.final) bonus = null;
     if (r.newBest) add('New best score', 20);
+    // Arcade Marathon: each game is worth up to 100 points (score measured against its Gold medal)
+    if (mar && r.final && mar.list[mar.i] && mar.list[mar.i].id === r.game) {
+      var gold = (MEDALS[r.game] || [0, 0, 1000])[2], mp = Math.min(100, Math.round((r.score || 0) / gold * 100));
+      mar.pts.push(mp); mar.total += mp;
+      out.mar = { i: mar.i + 1, n: mar.list.length, pts: mp, total: mar.total, done: mar.i + 1 >= mar.list.length, next: mar.list[mar.i + 1] ? mar.list[mar.i + 1].name : null };
+      if (out.mar.done) {
+        add('Marathon finished', 40 + Math.round(mar.total / 4), 'gold');
+        var prize = { coal: 1 + Math.floor(mar.total / 60) }; if (mar.total >= 120) prize.iron = 1; if (mar.total >= 200) prize.gold = 1; if (mar.total >= 320) prize.diamond = 1;
+        grant(prize); out.mar.prize = prize; out.mar.best = Math.max(P.marBest || 0, mar.total); out.mar.record = mar.total > (P.marBest || 0); P.marBest = out.mar.best; P.marRuns = (P.marRuns || 0) + 1;
+      }
+    }
     var T = P.today, found = 0;
     Object.keys(r.ores || {}).forEach(function (k) { found += r.ores[k] || 0; });
     T.plays[r.game] = (T.plays[r.game] || 0) + 1;
@@ -165,8 +180,29 @@ var PCQuest = (function () {
     var h = '<div class="xpbox"><div class="xphead"><span class="lvbadge">LV ' + out.lvl + '</span><span class="xptot">+' + out.xp + ' XP</span></div>';
     h += bar(out.cur, out.need) + '<div class="xpnote">' + (out.lvl >= MAX_LEVEL ? 'Max level!' : out.cur + ' / ' + out.need + ' XP to Level ' + (out.lvl + 1)) + '</div>';
     out.parts.forEach(function (p) { h += '<div class="xpline ' + p[2] + '"><span>' + p[0] + '</span><span>+' + p[1] + '</span></div>'; });
-    return h + '</div>';
+    h += '</div>';
+    if (out.mar) {
+      var m = out.mar;
+      h += '<div class="xpbox marbox"><div class="xphead"><span class="lvbadge">MARATHON ' + m.i + '/' + m.n + '</span><span class="xptot">' + m.pts + ' pts</span></div>' + bar(m.total, m.n * 100) +
+        '<div class="xpnote">Total ' + m.total + ' / ' + m.n * 100 + '</div>' +
+        (m.done ? '<div class="xpline gold"><span>' + (m.record ? '★ New marathon record! ★' : 'Marathon complete! Best ' + m.best) + '</span></div><div class="ores">' + oreRow(m.prize) + '</div>'
+          : '<div class="xpline"><span>Up next</span><span>' + m.next + '</span></div>') + '</div>';
+    }
+    return h;
   }
+
+  // ---------- Arcade Marathon: five random quick games, 60 seconds each ----------
+  function marathonStart() {
+    var pool = api.games().filter(function (g) { return g.mar; }), list = [];
+    while (list.length < MAR_N && pool.length) list.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    mar = { list: list, i: 0, pts: [], total: 0 }; bonus = null;
+    api.toast('Marathon! ' + MAR_N + ' games, ' + MAR_SECS + ' seconds each', 2600);
+    api.startGame(list[0].id);
+  }
+  // what the cabinet should do for this game: null (normal play) or { limit, label }
+  function marathonFor(id) { return mar && mar.list[mar.i] && mar.list[mar.i].id === id ? { limit: MAR_SECS, label: (mar.i + 1) + '/' + mar.list.length } : null; }
+  // after a marathon game's game-over card: id of the next game, or null when the marathon is finished
+  function marathonNext() { if (!mar) return null; mar.i++; if (mar.i >= mar.list.length) { mar = null; return null; } return mar.list[mar.i].id; }
 
   // ---------- level-up party ----------
   function celebrate(out) {
@@ -192,10 +228,11 @@ var PCQuest = (function () {
       '<small>' + (P.lvl >= MAX_LEVEL ? 'Max level!' : P.xp + ' / ' + need(P.lvl) + ' XP') + '</small></span>' +
       '<span class="hl-q' + (done === 3 ? ' all' : '') + '"><b>' + done + '/3</b><small>QUESTS</small>' + (st > 1 ? '<em>' + st + ' days!</em>' : '') + '</span>';
   }
-  function decorate(card, id) {       // medals + QUEST ribbon on a hub cabinet card
+  function decorate(card, id, isNew) {       // medals + QUEST / NEW ribbon on a hub cabinet card
     var P = prog(); ensureDay(P);
     if (MEDALS[id]) { var m = document.createElement('div'); m.className = 'cab-medals'; m.innerHTML = pips(P.medals[id] || 0); card.appendChild(m); }
     if (P.quests.some(function (q) { return q.game === id && !q.done; })) { var r = document.createElement('div'); r.className = 'cab-ribbon'; r.textContent = 'QUEST'; card.appendChild(r); }
+    else if (isNew && !allPlays()[id]) { var n = document.createElement('div'); n.className = 'cab-ribbon new'; n.textContent = 'NEW'; card.appendChild(n); }
   }
   function mystery() {                // the Mystery Box card: a random cabinet at double XP
     var list = api.games().filter(function (g) { return g.id !== 'paccraft'; });
@@ -206,10 +243,16 @@ var PCQuest = (function () {
   }
   // first visit after the update: hand out medals already earned, then say hello
   function welcome() {
-    var P = prog(); if (P.intro) return;
+    var P = prog();
+    if (P.intro && P.intro !== 4) {   // already met Level Up: just announce the v4.0 arcade
+      P.intro = 4; api.persist(true);
+      api.modal('48 GAMES!', 'The arcade just tripled: 32 brand-new cabinets — action, skill, puzzle and brain games. Use the tabs to find them (look for the NEW ribbons), try the Arcade Marathon for 5 random games in a row, and level up to meet the Golden Pup and the Shadow Wolf.', [{ label: 'Let\'s go!', cls: 'btn-gold btn-sm' }]);
+      return;
+    }
+    if (P.intro) return;
     var bests = allBests(), n = 0;
     Object.keys(MEDALS).forEach(function (id) { var t = tierFor(id, bests[id] || 0); if (t > (P.medals[id] || 0)) { n += t - (P.medals[id] || 0); P.medals[id] = t; } });
-    P.intro = true; api.persist(true);
+    P.intro = 4; api.persist(true);
     api.modal('LEVEL UP!', 'New in the arcade: every game now earns XP for your Arcade Level. Level up to open reward chests and unlock new pets, win Bronze, Silver and Gold medals on every cabinet, and finish 3 new quests every day.' +
       (n ? ' Your old high scores already earned you ' + n + ' medal' + (n === 1 ? '' : 's') + '!' : ''),
       [{ label: 'Show me!', cls: 'btn-gold btn-sm', fn: function () { api.show('quests'); } }, { label: 'Play', cls: 'btn-green btn-sm' }]);
@@ -255,7 +298,8 @@ var PCQuest = (function () {
   function init(a) { api = a; prog(); }
   return {
     init: init, report: report, resultHTML: resultHTML, celebrate: celebrate, hubHTML: hubHTML, decorate: decorate, mystery: mystery, welcome: welcome, render: render,
-    level: function () { return prog().lvl; }, clearBonus: function () { bonus = null; }, bonus: function () { return bonus; },
+    level: function () { return prog().lvl; }, clearBonus: function () { bonus = null; mar = null; }, bonus: function () { return bonus; },
+    marathonStart: marathonStart, marathonFor: marathonFor, marathonNext: marathonNext, marathon: function () { return mar; }, marBest: function () { return prog().marBest || 0; },
     MEDALS: MEDALS, PET_NAMES: PET_NAMES, UNLOCKS: UNLOCKS,
     _: { need: need, rank: rank, chest: chest, tierFor: tierFor, roll: roll, gain: gain, blank: blank, questProgress: questProgress, dayKey: dayKey }
   };

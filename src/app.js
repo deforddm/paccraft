@@ -1,7 +1,7 @@
 /* PacCraft — app shell: screens, save data, input, HUD, crafting, hero, builder wiring, game loop. */
 (function () {
   'use strict';
-  var VERSION = '3.0.0';
+  var VERSION = '4.0.0';
   var Wd = PCWorld, TILE = Wd.TILE, W = Wd.W, H = Wd.H, A = PCAudio;
   var $ = function (id) { return document.getElementById(id); };
   var tex = PCTex.build();
@@ -255,10 +255,32 @@
     ['coal', 'iron', 'gold', 'diamond', 'ember'].forEach(function (k) { bank += '<span>' + img(ICON.ore[k]) + save.ores[k] + '</span>'; });
     $('hub-bank').innerHTML = bank;
     var box = $('cabinets'); box.innerHTML = '';
-    var all = CABINETS.concat(PCCab.list().map(function (d) {
-      return { id: d.id, cls: d.id, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
+    var all = CABINETS.map(function (c) { c.cat = 'classic'; return c; }).concat(PCCab.list().map(function (d) {
+      return { id: d.id, cls: d.id, cat: d.cat || 'classic', isNew: !!d.isNew, name: d.name, blurb: d.blurb, thumb: d.thumb, start: function () { PCCab.start(d.id); }, best: function () { return save.hi[d.id] || 0; } };
     }));
-    all.push({ id: 'mystery', cls: 'mystery', name: 'Mystery Box', blurb: 'A surprise game — and it pays DOUBLE XP!', start: function () { PCQuest.mystery(); }, best: null,
+    function makeCard(c) {
+      var card = document.createElement('button'); card.className = 'cab-card ' + c.cls + (c.cat ? ' cat-' + c.cat : '');
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
+      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
+      try { c.thumb(g, 64, 48, tex, save.look); } catch (e) { if (window.console) console.error('thumb ' + c.id, e); }
+      card.appendChild(cv);
+      var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
+      var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
+      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = c.best ? 'BEST ' + c.best() : c.tag; card.appendChild(best);
+      if (c.cat) PCQuest.decorate(card, c.id, c.isNew);
+      card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
+      return card;
+    }
+    // the two specials sit above the tabs: Arcade Marathon and the Mystery Box
+    var sp = $('hub-specials'); sp.innerHTML = '';
+    sp.appendChild(makeCard({ id: 'marathon', cls: 'marathon', name: 'Arcade Marathon', blurb: '5 random games in a row, 60 seconds each. Rack up points!', tag: 'BEST ' + PCQuest.marBest() + ' / 500', start: function () { PCQuest.marathonStart(); },
+      thumb: function (g, w, h) {
+        g.fillStyle = '#16122a'; g.fillRect(0, 0, w, h);
+        for (var y = 0; y < 3; y++) for (var x = 0; x < 16; x++) { g.fillStyle = (x + y) % 2 ? '#fbf7ff' : '#1b1822'; g.fillRect(x * 4, y * 4, 4, 4); }
+        [TILE.GRASS, TILE.GOLD, TILE.DIAMOND, TILE.MAGMA, TILE.CRYSTAL].forEach(function (t, i) { g.drawImage(tex.blocks[t].top, 0, 0, 16, 16, 3 + i * 12, 18 + (i % 2) * 4, 10, 10); });
+        PCTex.drawText(g, '5 GAMES', 11, 37, 1, '#ffe680', '#000');
+      } }));
+    sp.appendChild(makeCard({ id: 'mystery', cls: 'mystery', name: 'Mystery Box', blurb: 'A surprise game — and it pays DOUBLE XP!', tag: '2× XP', start: function () { PCQuest.mystery(); },
       thumb: function (g, w, h) {
         var d = tex.blocks[TILE.STONE].top;
         for (var y = 0; y < h; y += 16) for (var x = 0; x < w; x += 16) g.drawImage(d, x, y, 16, 16);
@@ -269,20 +291,18 @@
         g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(16, 36, 32, 4); g.fillRect(44, 8, 4, 32);
         g.fillStyle = '#8a5ad6'; g.fillRect(16, 21, 32, 6); g.fillStyle = '#b48cf0'; g.fillRect(16, 21, 32, 2);
         PCTex.drawText(g, '?', 32 - Math.round(PCTex.textWidth('?', 3) / 2), 14, 3, '#ffe680', '#000');
-      } });
-    all.forEach(function (c) {
-      var card = document.createElement('button'); card.className = 'cab-card ' + c.cls;
-      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
-      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#1a1420'; g.fillRect(0, 0, 64, 48);
-      try { c.thumb(g, 64, 48, tex, save.look); } catch (e) { }
-      card.appendChild(cv);
-      var m = document.createElement('div'); m.className = 'cab-marquee'; m.textContent = c.name; card.appendChild(m);
-      var b = document.createElement('div'); b.className = 'cab-blurb'; b.textContent = c.blurb; card.appendChild(b);
-      var best = document.createElement('div'); best.className = 'cab-best'; best.textContent = c.best ? 'BEST ' + c.best() : '2× XP'; card.appendChild(best);
-      PCQuest.decorate(card, c.id);
-      card.addEventListener('click', function () { A.unlock(); A.play('click'); c.start(); });
-      box.appendChild(card);
+      } }));
+    // tabs: the 48 cabinets sorted onto floors
+    var TABS = [['all', 'All'], ['classic', 'Classics'], ['action', 'Action'], ['skill', 'Skill'], ['puzzle', 'Puzzle'], ['brain', 'Brain']];
+    var tab = save.settings.hubTab || 'all'; if (!TABS.some(function (t) { return t[0] === tab; })) tab = 'all';
+    var tb = $('hub-tabs'); tb.innerHTML = '';
+    TABS.forEach(function (t) {
+      var n = all.filter(function (c) { return t[0] === 'all' || c.cat === t[0]; }).length;
+      var b = document.createElement('button'); b.className = 'hub-tab' + (t[0] === tab ? ' active' : ''); b.innerHTML = t[1] + ' <small>' + n + '</small>';
+      b.addEventListener('click', function () { A.play('click'); save.settings.hubTab = t[0]; persist(); var st = document.querySelector('.hub-wrap').scrollTop; enterHub(); document.querySelector('.hub-wrap').scrollTop = st; });
+      tb.appendChild(b);
     });
+    all.filter(function (c) { return tab === 'all' || c.cat === tab; }).forEach(function (c) { box.appendChild(makeCard(c)); });
     var hi = document.querySelector('#hub-hero .ico'); if (hi) hi.style.backgroundImage = 'url(' + PCTex.dataURL(PCTex.hero(save.look).down[0], 4) + ')';
     hubPet = PCPet.make(save.look, function (n) { A.play(n); });
     if (!hubPetRaf) { hubPetLast = performance.now(); hubPetRaf = requestAnimationFrame(hubPetLoop); }
@@ -1003,7 +1023,7 @@
   var PETS = [
     { id: 'none', name: 'No pet' },
     { id: 'wolf', name: 'Wolf', cost: { gold: 5, iron: 3 }, desc: 'A blocky wolf that trots along behind you. Just for fun — monsters ignore it.' },
-    { id: 'fox', name: 'Fox', lvl: 3 }, { id: 'panda', name: 'Panda Pup', lvl: 7 }, { id: 'ember', name: 'Ember Hound', lvl: 12 }, { id: 'crystal', name: 'Crystal Wolf', lvl: 18 }
+    { id: 'fox', name: 'Fox', lvl: 3 }, { id: 'panda', name: 'Panda Pup', lvl: 7 }, { id: 'ember', name: 'Ember Hound', lvl: 12 }, { id: 'crystal', name: 'Crystal Wolf', lvl: 18 }, { id: 'golden', name: 'Golden Pup', lvl: 25 }, { id: 'shadow', name: 'Shadow Wolf', lvl: 35 }
   ];
   var heroT = 0;
   function renderHero() {
@@ -1224,7 +1244,9 @@
   buildIcons();
   applySettings();
   drawLogo();
-  function allGames() { return [{ id: 'paccraft', name: 'PacCraft' }].concat(PCCab.list().map(function (d) { return { id: d.id, name: d.name }; })); }
+  // marathon-friendly = quick to get going: the action and skill cabinets plus the reflex classics
+  var MAR_CLASSIC = { dash: 1, breaker: 1, invaders: 1, crossing: 1, snake: 1, caveworm: 1, skyguard: 1, meteor: 1, minecart: 1, bonk: 1, digger: 1, tower: 1 };
+  function allGames() { return [{ id: 'paccraft', name: 'PacCraft' }].concat(PCCab.list().map(function (d) { return { id: d.id, name: d.name, mar: d.cat === 'action' || d.cat === 'skill' || !!MAR_CLASSIC[d.id] }; })); }
   PCQuest.init({
     save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img, modal: modal,
     show: function (id) { show(id); }, games: allGames,
@@ -1232,6 +1254,7 @@
   });
   PCCab.setApi({
     quest: function (r) { var out = PCQuest.report(r); out.html = PCQuest.resultHTML(out); return out; },
+    marathonFor: function (id) { return PCQuest.marathonFor(id); }, marathonNext: function () { return PCQuest.marathonNext(); },
     celebrate: function (out) { PCQuest.celebrate(out); },
     save: function () { return save; }, persist: persist, A: A, ICON: ICON, toast: toast, img: img,
     show: function (id) { show(id); }, back: function () { show('hub', true); },

@@ -141,6 +141,7 @@ var PCCab = (function () {
     cur = { def: def, inst: def.create(ctx), running: true, paused: false, over: false, score: 0, ores: {}, time: 0, hi0: save.hi[id] || 0 };
     ctx.addOre = function (k, n) { api.addOre(k, n); cur.ores[k] = (cur.ores[k] || 0) + n; refreshOres(); };
     cur.inst.ctx = ctx;
+    cur.mar = api.marathonFor ? api.marathonFor(id) : null;   // Arcade Marathon: time limit + "2/5" label
     // controls layout
     var c = def.controls || {};
     $('cab-controls').hidden = !c.dpad && !c.a && !c.b;
@@ -149,7 +150,8 @@ var PCCab = (function () {
     $('cab-a').hidden = !c.a; $('cab-b').hidden = !c.b;
     $('cab-a').querySelector('span').textContent = c.a || ''; $('cab-b').querySelector('span').textContent = c.b || '';
     $('cab-a').className = 'act act-a' + (c.aClass ? ' ' + c.aClass : ''); $('cab-b').className = 'act act-b';
-    $('cab-title').textContent = def.name;
+    $('cab-title').textContent = (cur.mar ? cur.mar.label + ' ' : '') + def.name;
+    $('cab-again').textContent = 'Play Again'; $('cab-menu').textContent = 'Back to Arcade';
     $('cab-hi').textContent = 'BEST ' + (save.hi[id] || 0);
     setScore(0); refreshOres();
     $('cab-pause').hidden = true; $('cab-over').hidden = true;
@@ -166,7 +168,14 @@ var PCCab = (function () {
   function loop(now) {
     if (!cur) return;
     var dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
-    if (!cur.paused && !cur.over) { cur.time += dt; cur.inst.update(dt); }
+    if (!cur.paused && !cur.over) {
+      cur.time += dt; cur.inst.update(dt);
+      if (cur.mar && !cur.over) {
+        var leftS = Math.max(0, Math.ceil(cur.mar.limit - cur.time));
+        if (leftS !== cur.marShown) { cur.marShown = leftS; $('cab-hi').textContent = 'TIME ' + leftS; }
+        if (cur.time >= cur.mar.limit) gameOver({ win: true, title: "Time's Up!" });
+      }
+    }
     if (g) {
       g.setTransform(view.scale, 0, 0, view.scale, 0, 0); g.imageSmoothingEnabled = false;
       cur.inst.draw(g, view.w, view.h, dt);
@@ -177,7 +186,7 @@ var PCCab = (function () {
     if (!cur) return;
     cur.score = n; $('cab-score').textContent = n;
     var save = api.save(), id = cur.def.id;
-    if (n > (save.hi[id] || 0)) { save.hi[id] = n; $('cab-hi').textContent = 'BEST ' + n; }
+    if (n > (save.hi[id] || 0)) { save.hi[id] = n; if (!cur.mar) $('cab-hi').textContent = 'BEST ' + n; }
   }
   function refreshOres() {
     var save = api.save(), s = '';
@@ -211,12 +220,14 @@ var PCCab = (function () {
     if (earned) h += earned.html;
     $('cab-over-stats').innerHTML = h;
     $('cab-over-title').textContent = info.title || (info.win ? 'You Win!' : 'Game Over');
+    cur.marNext = !!(earned && earned.mar && !earned.mar.done);
+    if (earned && earned.mar) { $('cab-again').textContent = earned.mar.done ? 'Play Again' : 'Next Game ▶'; if (!earned.mar.done) $('cab-menu').textContent = 'Quit Marathon'; }
     $('cab-over-title').className = info.win ? 'win' : 'lose';
     $('cab-over').hidden = false;
     api.persist(true);
     if (earned && earned.level) api.celebrate(earned);
   }
-  function restart() { if (!cur) return; var id = cur.def.id; start(id); }
+  function restart() { if (!cur) return; var id = cur.def.id; if (cur.over && cur.marNext) id = api.marathonNext() || id; start(id); }
   function quit() { stop(); api.A.stopMusic(); api.back(); }
 
   function init() {
