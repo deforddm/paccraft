@@ -1,6 +1,6 @@
 # Blockcade
 
-A blocky mash-up arcade made for Max — four retro arcade games in one installable web app, sharing one bag of ores, one crafting table, one hero and the Lucky Mine. It runs in any phone browser, installs to the home screen, and works offline.
+A blocky mash-up arcade made for Max — 48 arcade games in one installable web app, sharing one bag of ores, one crafting table, one hero and the Lucky Mine. It runs in any phone browser, installs to the home screen, and works offline.
 
 | Cabinet | What it is | Controls |
 |---|---|---|
@@ -24,6 +24,21 @@ A blocky mash-up arcade made for Max — four retro arcade games in one installa
 Each cabinet keeps its own best score. Ores earned anywhere spend anywhere — at the Crafting Table (PacCraft upgrades), on hats and the wolf, and in the Lucky Mine.
 
 **The wolf** — once adopted on the Hero screen (5 gold + 3 iron), Max's wolf tags along in every cabinet: trotting behind the hero, running under the paddle, waiting on the creek bank, chasing the snake's tail, cheering beside the stack. Tap it on the arcade sign to make it bark. It never touches gameplay.
+
+## 48 cabinets (v4.0)
+
+v4.0 adds 32 cabinets built on a small shared framework (`src/mini.js`), sorted onto tabs on the hub:
+
+- **Action (12):** Bat Flap, Slime Pong, Sky Swarm, Lava Leap, Desert Run, Ore Rain, Road Rush, Canyon Flyer, Mob Arena, Block Chop, Flip Runner, Rail Race.
+- **Skill (6):** Sky Tower, Soft Landing, Plinko Drop, Slime Golf, Target Range, Beat Blocks.
+- **Puzzle (10):** Ore Merge, Block Pop, TNT Sweeper, Block Pairs, Echo Blocks, and — against the clock — Lamp Flip, Slide Tiles, Ice Slide, Pipe Twist, Pixel Picross.
+- **Brain (4):** Four in a Row and Flip Stones (both against Rumble), Word Miner, Math Mine.
+
+Every one pays ores, XP, medals and quests like the original sixteen, and the pet sits in the corner of each.
+
+**Arcade Marathon** (first card on the hub): five random quick games in a row, 60 seconds each. Each game is worth up to 100 points (your score measured against that game's Gold medal); the total out of 500 pays XP and ores and is kept as a best.
+
+Also new: Golden Pup (Level 25) and Shadow Wolf (Level 35), NEW ribbons on cabinets not played yet.
 
 ## Level Up (v3.0)
 
@@ -110,6 +125,8 @@ src/games/skyguard.js Sky Guard
 src/games/meteor.js   Meteor Miner
 src/games/minecart.js Minecart Rush
 src/games/bonk.js     Bonk-a-Mob
+src/mini.js           PCMini: framework for the v4.0 cabinets (score, hearts, level, clock, HUD, pet, input hooks)
+src/games/pack-*.js   the 32 v4.0 cabinets, six files by category
 src/pet.js            the pet companion helper used by every cabinet
 src/quest.js          Level Up: Arcade Level + XP, reward chests, medals, daily quests, Quest Book, Mystery Box
 src/world.js          blocks, biomes, seeded RNG, symmetric maze generator, custom levels
@@ -125,6 +142,7 @@ manifest.webmanifest  PWA manifest
 icons/                app icons (rendered from the game's own art: npm run icons)
 tests/sim.test.js     maze invariants (560 mazes) + long headless play simulations
 tests/quest.test.js   Level Up rules: XP curve, chests, medals, quests
+tests/picross.test.js every Pixel Picross picture has exactly one solution
 tests/bot.js          balance bot: clear rates per difficulty
 tools/build.js        builds dist/blockcade.html and dist/artifact.html
 ```
